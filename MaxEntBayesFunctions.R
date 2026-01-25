@@ -108,7 +108,7 @@ FitValidationModelINLA <- function(species, dataname, Envnames,
 
 # Fit and validate model
 FitAndValidate <- function(sp, DataName, Env, nclust=1, small=FALSE, classes="l", verbose=FALSE) {
-  FileName <- paste0("Results/MaxEntResINLA", DataName, sp, ".RData")
+  FileName <- paste0("Results/MaxEntResINLA", DataName, classes, sp, ".RData")
   if(small) {
     NBurn <- 10
     NIter <- 10
