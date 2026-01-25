@@ -107,8 +107,8 @@ FitValidationModelINLA <- function(species, dataname, Envnames,
 
 
 # Fit and validate model
-FitAndValidate <- function(sp, DataName, Env, nclust=1, small=FALSE, classes="l") {
-  FileName <- paste0("MaxEntResults/MaxEntResINLA", DataName, sp, ".RData")
+FitAndValidate <- function(sp, DataName, Env, nclust=1, small=FALSE, classes="l", verbose=FALSE) {
+  FileName <- paste0("Results/MaxEntResINLA", DataName, sp, ".RData")
   if(small) {
     NBurn <- 10
     NIter <- 10
@@ -122,20 +122,20 @@ FitAndValidate <- function(sp, DataName, Env, nclust=1, small=FALSE, classes="l"
     Thin <- 5
   }
   if(!file.exists(FileName)) {
-    cat("Started ", sp, "\n")
+    if(verbose) cat("Started ", sp, "\n")
     require(disdat)
     Data <- disData(DataName)
     Fit <- FitModelToDisDat(species=sp, data=Data, Envnames=Env, classes=classes,
                             nburn =NBurn, niter = NIter, nchain=NChain, thin=Thin)
-    cat("Fitted ", sp, "\n")
+    if(verbose) cat("Fitted ", sp, "\n")
     
     Valid <- FitValidationModelINLA(species=sp, dataname=DataName, 
                                     Envnames=Env,
                                     mcmc.coda=Fit$mcmc, maxent.mod=Fit$maxnet, nclust=nclust)
     save(Fit, Valid, file=FileName)
-    cat("Done ", sp, "\n")
+    if(verbose) cat("Done ", sp, "\n")
   } else {
-    cat("Already Done ", sp, "\n")
+    if(verbose) cat("Already Done ", sp, "\n")
   }
 }
 

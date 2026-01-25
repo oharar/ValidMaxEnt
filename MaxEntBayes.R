@@ -1,7 +1,7 @@
 library(BayesMaxEnt)
 library(maxnet)
 library(disdat)
-library(bayesplot)
+# library(bayesplot)
 library(parallel)
 
 source("MaxEntBayesFunctions.R")
@@ -17,6 +17,7 @@ AWTSpecies <- unique(disPo("AWT")$spid)
 # FitAndValidate(sp=AWTSpecies[1], DataName="AWT", Env=EnvPO, nclust=1, small=TRUE)
 
 AWTThing <- sapply(AWTSpecies[1:3], FitAndValidate, DataName="AWT", Env=EnvPO, nclust=6, small=TRUE)
+# AWTThing <- sapply(AWTSpecies, FitAndValidate, DataName="AWT", Env=EnvPO, nclust=6)
 
 
 # "CAN"
