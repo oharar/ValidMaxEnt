@@ -30,8 +30,9 @@ Env <- names(disBg(dataname))
 Env <- Env[!(Env%in%RemoveNames)]
 
 Species <- unique(disPo(dataname)$spid)
-# Thing <- sapply(Species, FitAndValidate, DataName=dataname, Env=Env, nclust=6, classes=classes)
+
 
  # This is for testing
-  Thing <- sapply(Species[1:3], JustFit, DataName=dataname, Env=Env, nclust=6, small=TRUE)
- 
+#  Thing <- sapply(Species[1:3], JustFit, DataName=dataname, Env=Env, small=TRUE, classes=classes)
+# This is the real thing 
+ Thing <- sapply(Species, JustFit, DataName=dataname, Env=Env, classes=classes)

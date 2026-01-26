@@ -40,13 +40,20 @@ EnvPO <- names(disBg("NZ"))
 EnvPO <- EnvPO[!(EnvPO%in%RemoveNames)]
 NZSpecies <- unique(disPo("NZ")$spid)
 
-NZThing <- sapply(NZSpecies, FitAndValidate, DataName="NZ", Env=EnvPO, nclust=6)
+NZThing <- sapply(NZSpecies, JustFit, DataName="NZ", Env=EnvPO, classes="l", nclust=6)
+
+# JustFit(sp=NZSpecies[1], DataName="NZ", Env=EnvPO, small=TRUE, classes="l", verbose=TRUE)
+# JustValidate(sp=NZSpecies[1], DataName="NZ", Env=EnvPO, small=TRUE, nclust = 3, classes="l", verbose=TRUE)
+
+NZThing <- sapply(NZSpecies, JustFit, DataName="NZ", Env=EnvPO, classes="l")
+
+# thing <- FitAndValidate(sp=NZSpecies[1], DataName="NZ", Env=EnvPO, nclust=6, classes="lq", small = TRUE)
 
 
 # "SA", 
 EnvPO <- names(disBg("SA"))
 EnvPO <- EnvPO[!(EnvPO%in%RemoveNames)]
-Species <- "can02"
+# Species <- "can02"
 SASpecies <- unique(disPo("SA")$spid)
 
 SAThing <- sapply(SASpecies, FitAndValidate, DataName="SA", Env=EnvPO, nclust=6)
