@@ -106,3 +106,13 @@ AWTThing <- sapply(AWTSpecies, JustValidate, DataName="NZ", Env=EnvPO, small=FAL
 
 
 # mcmc_trace(BigFit$mcmc, pars = c("alpha", "beta[1]"))
+
+
+
+WriteBashScript(dataname="AWT", filename="AWT_Fit_lqpht.sh", classes="lqpht")
+WriteBashScript(dataname="CAN", filename="CAN_Fit_lqpht.sh", classes="lqpht")
+WriteBashScript(dataname="NSW", filename="NSW_Fit_lqpht.sh", classes="lqpht")
+WriteBashScript(dataname="NZ", filename="NZ_Fit_lqpht.sh", classes="lqpht")
+WriteBashScript(dataname="SA", filename="SA_Fit_lqpht.sh", classes="lqpht")
+WriteBashScript(dataname="SWI", filename="SWI_Fit_lqpht.sh", classes="lqpht")
+

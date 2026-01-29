@@ -1,0 +1,21 @@
+#!/bin/bash
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can01 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can02 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can03 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can04 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can05 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can06 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can07 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can08 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can09 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can10 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can11 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can12 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can13 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can14 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can15 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can16 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can17 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can18 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can19 lqpht &
+Rscript MaxEntBayesScriptSpecies.R --args  CAN can20 lqpht &

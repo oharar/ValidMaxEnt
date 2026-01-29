@@ -279,3 +279,15 @@ FitAll <- function(dataname, remove, classes="l", fit=TRUE, validate=TRUE) {
   if(validate) Thing2 <- sapply(Species, JustValidate, DataName=dataname, Env=EnvPO, small=FALSE, 
                                 nclust = 6, classes="l", verbose=TRUE)
 }
+
+
+WriteBashScript <- function(dataname, filename, classes="l") {
+  cat("#!/bin/bash\n", file=filename)
+  Species <- unique(disPo(dataname)$spid)
+  
+  sapply(Species, function(sp, datname) {
+    Command <- paste("Rscript MaxEntBayesScriptSpecies.R --args ", 
+                     datname, sp,  classes, "&\n", sep=" ")
+    cat(Command, file=filename, append = TRUE)
+    }, datname=dataname)
+}
