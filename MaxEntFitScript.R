@@ -1,6 +1,6 @@
 # Usage
-# RScript MaxEntBayesScript.R --args NZ 
-# RScript MaxEntBayesScript.R --args NZ l
+# Rscript MaxEntFitScript.R --args NZ 
+# Rscript MaxEntFitScript.R --args NZ l
 
 # First argument is data set (One of "AWT", "CAN", "NSW", "NZ", "SA", "SWI")
 # second is classes: subset of "lqpht" 
