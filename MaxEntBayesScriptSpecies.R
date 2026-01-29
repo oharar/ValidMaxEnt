@@ -2,8 +2,6 @@
 # RScript MaxEntBayesScript.R --args NZ 
 # RScript MaxEntBayesScriptSpecies.R --args NZ nz01 l
 
-lqpht
-
 # First argument is data set (One of "AWT", "CAN", "NSW", "NZ", "SA", "SWI")
 # second argument is species
 # third is classes: subset of "lqpht" 
@@ -15,7 +13,7 @@ species <- as.character(args[3])
 # cat(dataname, "\n", file="Try.txt")
 
 if(length(args)>3) {
- classes <- args[4] 
+ classes <- as.character(args[4])
 } else (
   classes <- "l"
 )
