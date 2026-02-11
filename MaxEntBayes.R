@@ -9,7 +9,7 @@ source("MaxEntBayesFunctions.R")
 RemoveNames <- c("siteid", "spid", "x", "y", "occ", "group")
 
 
-
+# Done these
 FitAll(dataname="AWT", remove=RemoveNames, classes="l", validate = FALSE)
 FitAll(dataname="CAN", remove=RemoveNames, classes="l", validate = FALSE)
 FitAll(dataname="NSW", remove=RemoveNames, classes="l", validate = FALSE)
@@ -17,6 +17,7 @@ FitAll(dataname="NZ", remove=RemoveNames, classes="l", validate = FALSE)
 FitAll(dataname="SA", remove=RemoveNames, classes="l", validate = FALSE)
 FitAll(dataname="SWI", remove=RemoveNames, classes="l", validate = FALSE)
 
+# Re-doing these. CAN done
 FitAll(dataname="AWT", remove=RemoveNames, classes="l", fit = FALSE)
 FitAll(dataname="CAN", remove=RemoveNames, classes="l", fit = FALSE)
 FitAll(dataname="NSW", remove=RemoveNames, classes="l", fit = FALSE)
@@ -87,18 +88,21 @@ Species <- unique(disPo("SA")$spid)
 
 SAThing <- sapply(SASpecies, FitAndValidate, DataName="SA", Env=EnvPO, nclust=6)
 
-AWTThing <- sapply(AWTSpecies, JustFit, DataName="NZ", Env=EnvPO, classes="l")
-AWTThing <- sapply(AWTSpecies, JustValidate, DataName="NZ", Env=EnvPO, small=FALSE, 
+SAThing <- sapply(Species, JustFit, DataName="SA", Env=EnvPO, classes="l")
+SAThing <- sapply(Species, JustValidate, DataName="SA", Env=EnvPO, small=FALSE, 
                    nclust = 6, classes="l", verbose=TRUE)
 
 
 # "SWI"
 EnvPO <- names(disBg("SWI"))
 EnvPO <- EnvPO[!(EnvPO%in%RemoveNames)]
-Species <- "can02"
-SWISpecies <- unique(disPo("SWI")$spid)
+# Species <- "can02"
+Species <- unique(disPo("SWI")$spid)
 
-SWIthing <- sapply(SWISpecies, FitAndValidate, DataName="SWI", Env=EnvPO, nclust=6)
+SWIThing <- sapply(Species, JustFit, DataName="SWI", Env=EnvPO, classes="l")
+SWIThing <- sapply(Species, JustValidate, DataName="SWI", Env=EnvPO, small=FALSE, 
+                  nclust = 6, classes="l", verbose=TRUE)
+
 
 AWTThing <- sapply(AWTSpecies, JustFit, DataName="NZ", Env=EnvPO, classes="l")
 AWTThing <- sapply(AWTSpecies, JustValidate, DataName="NZ", Env=EnvPO, small=FALSE, 
@@ -109,10 +113,35 @@ AWTThing <- sapply(AWTSpecies, JustValidate, DataName="NZ", Env=EnvPO, small=FAL
 
 
 
-WriteBashScript(dataname="AWT", filename="AWT_Fit_lqpht.sh", classes="lqpht")
-WriteBashScript(dataname="CAN", filename="CAN_Fit_lqpht.sh", classes="lqpht")
-WriteBashScript(dataname="NSW", filename="NSW_Fit_lqpht.sh", classes="lqpht")
-WriteBashScript(dataname="NZ", filename="NZ_Fit_lqpht.sh", classes="lqpht")
-WriteBashScript(dataname="SA", filename="SA_Fit_lqpht.sh", classes="lqpht")
-WriteBashScript(dataname="SWI", filename="SWI_Fit_lqpht.sh", classes="lqpht")
+# WriteBashScript(dataname="AWT", filename="AWT_Fit_lqpht.sh", classes="lqpht")
+# WriteBashScript(dataname="CAN", filename="CAN_Fit_lqpht.sh", classes="lqpht")
+# WriteBashScript(dataname="NSW", filename="NSW_Fit_lqpht.sh", classes="lqpht")
+# WriteBashScript(dataname="NZ", filename="NZ_Fit_lqpht.sh", classes="lqpht")
+# WriteBashScript(dataname="SA", filename="SA_Fit_lqpht.sh", classes="lqpht")
+# WriteBashScript(dataname="SWI", filename="SWI_Fit_lqpht.sh", classes="lqpht")
+# 
+
+# Done these
+FitAll(dataname="AWT", remove=RemoveNames, classes="l", validate = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+FitAll(dataname="CAN", remove=RemoveNames, classes="l", validate = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+FitAll(dataname="NSW", remove=RemoveNames, classes="l", validate = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+FitAll(dataname="NZ", remove=RemoveNames, classes="l", validate = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+FitAll(dataname="SA", remove=RemoveNames, classes="l", validate = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+FitAll(dataname="SWI", remove=RemoveNames, classes="l", validate = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+
+# Doing these
+FitAll(dataname="AWT", remove=RemoveNames, classes="l", fit = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+FitAll(dataname="CAN", remove=RemoveNames, classes="l", fit = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+FitAll(dataname="NSW", remove=RemoveNames, classes="l", fit = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+FitAll(dataname="NZ", remove=RemoveNames, classes="l", fit = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+FitAll(dataname="SA", remove=RemoveNames, classes="l", fit = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+FitAll(dataname="SWI", remove=RemoveNames, classes="l", fit = FALSE, fileprefix = "Results/MaxEndBigLambda", lambda=100)
+
+
+Env <- names(disBg("CAN"))
+Env <- Env[!(Env%in%RemoveNames)]
+Species <- unique(disPo("CAN")$spid)
+
+tt <- JustFit(Species[1], DataName="CAN", Env=Env, lambda=10, 
+                         classes="l", overwrite=FALSE, fileprefix="MaxEndBigLambda")
 

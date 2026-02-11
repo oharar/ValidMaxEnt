@@ -9,7 +9,6 @@ library(coda)
 
 source("MaxEntBayesFunctions.R")
 
-
 CAN <- disData("CAN")
 EnvPO <- c("alt", "asp2", "ontprec", "ontprec4", "ontprecsd", "ontslp", 
            "onttemp", "onttempsd", "onttmin4", "ontveg", "watdist")
@@ -20,8 +19,14 @@ CanSpecies <- unique(disPo("CAN")$spid)
 # sp <- "can01"; dataname <- "CAN"
 Results <- as.data.frame(t(sapply(CanSpecies, GetResults, dataname="CAN")))
 
-NZSpecies <- unique(disPo("NZ")$spid)
-Results <- as.data.frame(t(sapply(NZSpecies, GetResults, dataname="NZ")))
+# Get wide prior models
+ResultsWide <- as.data.frame(t(sapply(CanSpecies, GetResults, dataname="CAN",
+                                      fileprefix = "Results/MaxEndBigLambda",
+                        simplify = TRUE)))
+Results <- ResultsWide
+
+# NZSpecies <- unique(disPo("NZ")$spid)
+# Results <- t(sapply(NZSpecies, GetResults, dataname="NZ"))
 
 
 Intercept <- Results[,grep("Interc", names(Results))]
@@ -53,7 +58,7 @@ par(mfrow=c(1,2), mar=c(4.1,1,1,1), oma=c(0,4,0,0))
 PlotPost(Intercept, adj=0.3, xlab="Intercept", ylab="", yaxt="n")
 axis(2, at=1:nrow(Intercept), labels = rownames(Intercept), las=1)  
 abline(v=0)
-
+legend(-9, 13, c("MaxEnt", "Bayes"), fill=1:2, cex=0.8)
 PlotPost(Slope, adj=0.3, xlab="Slope", ylab="", yaxt="n")
 #axis(2, at=1:nrow(Slope), labels = rownames(Slope), las=1)  
 abline(v=0); abline(v=-1, lty=3)
@@ -70,6 +75,8 @@ summary(as.mcmc.list(Fit$mcmc))
 
 NZSpecies <-  unique(disPo("NZ")$spid)
 
+
+# Fix this if we want the slope?
 GetStat=function(dataname, stat) {
   Species <- unique(disPo(dataname)$spid)
   if(stat=="alpha") v.stat <- "LP" else v.stat=stat
@@ -85,12 +92,31 @@ GetStat=function(dataname, stat) {
   alpha
 }
 
-NZ.int <- GetStat(dataname="NZ", stat="alpha")
-AWT.int <- GetStat(dataname="AWT", stat="alpha")
-CAN.int <- GetStat(dataname="CAN", stat="alpha")
-NSW.int <- GetStat(dataname="NSW", stat="alpha")
-SA.int <- GetStat(dataname="SA", stat="alpha")
-SWI.int <- GetStat(dataname="SWI", stat="alpha")
+IntStats <- list(
+  NZ = GetStat(dataname="NZ", stat="alpha"),
+  AWT = GetStat(dataname="AWT", stat="alpha"),
+  CAN = GetStat(dataname="CAN", stat="alpha"),
+  NSW = GetStat(dataname="NSW", stat="alpha"),
+  SA = GetStat(dataname="SA", stat="alpha"),
+  SWI = GetStat(dataname="SWI", stat="alpha")
+)
+
+par(mfrow=c(2,3), mar=c(2,2,4,1), oma=c(2.5,2.5,0,0))
+sapply(names(IntStats), function(name, intlst) {
+  int <- intlst[[name]]
+  At.x <- min(int[,"Fit.mean"]) + 0.7*(diff(range(int[,"Fit.mean"])))
+  At.y <- min(int[,"Valid.mean"]) + 0.8*(diff(range(int[,"Valid.mean"])))
+  plot(int[,"Fit.mean"], int[,"Valid.mean"], main=name, 
+       xlab="", ylab="", col="grey60")
+  corrr <- round(cor(int[,"Fit.mean"], int[,"Valid.mean"]),2)
+  Expr <- bquote(rho== .(corrr))
+  text(At.x, At.y, Expr, cex=1.3)
+  cat(At.x, " " , At.y, "\n")
+}, intlst = IntStats)
+mtext("Intercept for PO data", 1, line=1, outer=TRUE)
+mtext("Intercept for PA data", 2, line=1, outer=TRUE)
+
+
 
 cor(NZ.int[,"Fit.mean"], NZ.int[,"Valid.mean"])
 plot(NZ.int[,"Fit.mean"], NZ.int[,"Valid.mean"])
@@ -109,3 +135,7 @@ plot(SA.int[,"Fit.mean"], SA.int[,"Valid.mean"])
 
 cor(SWI.int[,"Fit.mean"], SWI.int[,"Valid.mean"])
 plot(SWI.int[,"Fit.mean"], SWI.int[,"Valid.mean"])
+
+
+
+

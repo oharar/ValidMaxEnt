@@ -1,0 +1,71 @@
+---
+title: "MappingSDMs"
+author: "Bob O'Hara"
+format: html
+---
+
+First, set up
+
+```{r, Setup}
+library(disdat)
+source("MaxEntBayesFunctions.R")
+
+PlotRegion <- function(reg, ncol=3) {
+  spp <- unique(disPo(reg)$spid)
+  par(mfrow=c(ceiling(length(spp)/ncol), ncol))
+  sapply(spp, PlotMap, dataname=reg)
+  
+}
+
+```
+
+## AWT
+
+```{r, AWT, fig.height=70}
+#| results: hide
+PlotRegion(reg="AWT", ncol=3)
+
+```
+
+
+## CAN
+
+```{r, CAN, fig.height=40}
+#| results: hide
+PlotRegion(reg="CAN", ncol=2)
+
+```
+
+## NSW
+
+```{r, NSW, fig.height=50}
+#| results: hide
+#| 
+PlotRegion(reg="NSW", ncol=3)
+
+```
+
+
+## NZ
+
+```{r, NZ, fig.height=50}
+#| results: hide
+PlotRegion(reg="NZ", ncol=3)
+
+```
+
+## SA
+
+```{r, SA, fig.height=30}
+#| results: hide
+PlotRegion(reg="SA", ncol=3)
+
+```
+
+## SWI
+
+```{r, SWI, fig.height=30}
+#| results: hide
+PlotRegion(reg="SWI", ncol=2)
+
+```

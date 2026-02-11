@@ -1,0 +1,259 @@
+---
+title: "Validating SDMs"
+author: "Bob O'Hara"
+format: pdf
+bibliography: bibliography.bib
+execute: 
+  cache: true
+---
+
+```{r, Stup}
+#| echo: false
+#| 
+library(maxnet)
+library(disdat)
+library(future.apply)
+
+source("MaxEntBayesFunctions.R")
+
+RemoveNames <- c("siteid", "spid", "x", "y", "occ", "group")
+
+```
+
+## Abstract
+
+## Introduction
+
+- SDMs often used. Validation, i.e. how good are they, is an issue. (@LeeYawEcographyBadSDMs).
+- Current validation often on same data, which can lead to over-fitting. Also, metrics often wrong: because it is the same data, will replicate biases. Thus TSS should be FSS in this context.
+- A better approach is to validate on external data. Could calculate AUC, TSS etc. but teh validation daat will be imperfect too. Here we take a slightly different approach that can be adapted to different data types.
+
+
+@SmithLevineTau showed that @YackulicMEE were right: you shouldn't think at all species are equal. But...
+
+The same data was used by @ValaviUsingDisDat to compare the perform,ance of different models. Here our focus is on the comparisons can and should be made, and what the results tell us.
+
+## Theory
+
+Most data is modelled as presence-only, so we will follow that here but indicate the adjustments needed if the data are of a different type. For presence-only data the underlying theory can be derived from point processes (e.g. @FithianHastie, @RennerWarton, @wartonShepherd2010, @AartsetalMEE2012). The actual distribution is viewed as an intensity surface, with a higher intensity where a species is more likely to be present. The data is made up of locations of observations of the species of interest, along with locations in the same region where the species was not observed. These latter points are usually called "pseudo-absences" in the SDM world. In a point process approach they are seen as integration points - to calculate the likelihood for the presences we should integrate the intensity over the full space. 
+
+Of concern here is the model for the intensity surface. It is assumed that it is affected by several environmental covariates in an additive way. Specifically, of $\lambda(\mathbf{s})$ is the intensity at point $\mathbf{s}$, the assumption is that $\log{\lambda(\mathbf{s}) = \alpha + \sum_i \beta_i X_i(\mathbf{s})} = \alpha + \eta(\mathbf{s})$ where $X_i(\mathbf{s})$ is a _feature_, i.e. a function of the environmental covariates. For simplicity we can think of this as an environmental covariate, but it could also be a non-linear term, such as a quadratic or the product of two environmental covariates (i.e. an interaction). This same approach is used in GLMs, MaxEnt, GAMs and many other methods. The $\beta_i$s are standard regression coefficients, and $\alpha$ is an intercept. This is not normally of interest for presence-only  data, as it is determined by the amount of data, i.e. the sampling effort. Thus the focus is on $\eta(\mathbf{s})$.
+
+If the model is correct, then the number of individuals of a species in an area A would follow a Poisson distribution with mean $A\lambda(\mathbf{s})$, where $A$ is a constant that will depend on sampling effort. The probability of an absence is then the probability of zero individuals, i.e. $e^{-A\lambda(\mathbf{s})}$. This leads to a model for presence/absence where $P(Z=1) = 1 - e^{e^{-\alpha_c - \eta(\mathbf{s})}}$, which is equivalent to a GLM with a binomial response and a cloglog link function ($\log(-\log(1-P(Z=1))) = \alpha_c + \eta(\mathbf{s})$). An alternative is to use a logistic regression (@ElithetalStatsExplanation), i.e. $\log P(Z=1)/(1-P(Z=1)) =\alpha_l + \eta(\mathbf{s})$, with a derivation based on averaging over possible distributions of the covariates and response (@PhillipsDudik).
+
+The purpose of laying this out is to suggest an approach to model validation. If we fit a model to presence-only data, we get estimates for $\eta(\mathbf{s}) = \sum_i \beta_i X_i(\mathbf{s})$. We can then use this to calculate predicted probabilities (up to an intercept) for a new presence/absence data set. We can then use these predictions in a GLM with a cloglog or logit link. If the model is correct, the slope should equal 1.
+
+Although we are not primarily interested in the intercept, except to note that it should not equal 0 (as pointed out by both @YackulicMEE and @SmithLevineTau), we might expect that if we look at the estimates for the fitting and validation models across species from the same data sets, they should be correlated. i.e. a species that is more common in the presence only data set may also be more common in the presence-absence data, because it may be more common or be easier to spot.
+
+Why, though, might a regression coefficient not equal 1? Aside from random chance, it may be because the model is wrong. Indeed, as all models are wrong this is likely. But it may also be because, even if the fitted model is correct, it is fitted to finite data, so there is uncertainty in the parameter estimates. This uncertainty will feed through to validation model, where $\eta(\mathbf{s})$ has been estimates with error. The overall effect of this is not just to increase uncertainty, but to bias the estimate of the slope towards zero (@CarrollErrorsinVariables). This could be mitigated by incorporating this uncertainty into the second model (REF).
+
+
+## Methods
+
+### Data
+
+From @disdat
+
+### Modelling
+
+```{r, FitModelsl}
+#| warning: false
+#| message: false
+plan(multisession, workers = 4) ## Run in parallel on local computer, with 4 nodes (cores?)
+AllCoefs.l <- sapply(c("AWT", "CAN", "NSW", "NZ", "SA", "SWI"), JustMaxEnt, 
+                   remove=RemoveNames, classes="l", valid = TRUE, pred=TRUE)
+AllCoefs.l.sp <- sapply(c("AWT", "CAN", "NSW", "NZ", "SA", "SWI"), JustMaxEnt, 
+                   remove=RemoveNames, classes="l", valid = TRUE, otherSpBG=TRUE, pred=TRUE)
+
+```
+
+
+```{r, FitModelslqpt}
+#| echo: false
+#| warning: false
+#| eval: true
+
+AllCoefs.lqpt <- sapply(c("AWT", "CAN", "NSW", "NZ", "SA", "SWI"), JustMaxEnt, 
+                   remove=RemoveNames, classes="lqpt", valid = TRUE, pred=TRUE)
+```
+
+
+## Results
+
+
+Plot of models with linear features
+
+```{r}
+#| echo: false
+#| results: hide
+PlotCoefs <- function(nm, lst) {
+  Coefs.l <- lapply(lst[[nm]], function(l) l$coefficients)
+  Coefs <- t(list2DF(Coefs.l)); 
+  colnames(Coefs) <- names(lst[[nm]][[1]]$coefficients)
+#  PredRange <- range(c(0,1, pmax(min(Coefs[,"Pred"]),-10), pmin(max(Coefs[,"Pred"]),10)))
+  PredRange <- range(c(0,1, range(Coefs[,"Pred"])))
+  plot(Coefs, ylim=PredRange, type="n", xlab="", ylab="", main=nm) 
+  rect(-100, 0, 100, 1, col="pink", border=NA)
+  points(Coefs)
+  box()
+}
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.l), PlotCoefs, lst=AllCoefs.l)
+mtext("Intercept", 1, outer=TRUE)
+mtext("Slope", 2, outer=TRUE, line=0.5)
+
+```
+
+ Plot of models with linear features, using presences of other species as background points
+
+```{r}
+#| echo: false
+#| results: hide
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.l.sp), PlotCoefs, lst=AllCoefs.l.sp)
+mtext("Intercept", 1, outer=TRUE)
+mtext("Slope", 2, outer=TRUE, line=0.5)
+
+```
+
+ Plot of models with all features except hinges
+
+```{r}
+#| echo: false
+#| results: hide
+#| eval: false
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.lqpt), PlotCoefs, lst=AllCoefs.lqpt)
+mtext("Intercept", 1, outer=TRUE)
+mtext("Slope", 2, outer=TRUE, line=0.5)
+
+```
+
+
+Plots of predictions from the MaxEnt model on the validation data model plotted against predictions for a model with MaxEnt features fitted to the presence-absence data.
+
+### AWT
+
+```{r, MaxEntPAPredsAWT}
+#| fig-height: 16
+#| fig-width: 12
+#| results: hide
+
+par(mfrow=c(ceiling(40/6), 6), mar=c(2,2,1,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.lqpt$AWT), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+}, allC=AllCoefs.lqpt$AWT)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+### CAN
+
+
+```{r, MaxEntPAPredsCAN}
+#| fig-height: 8
+#| fig-width: 12
+#| eval: true
+#| results: hide
+
+par(mfrow=c(ceiling(20/6), 6), mar=c(2,2,1,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.lqpt$CAN), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+}, allC=AllCoefs.lqpt$CAN)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+### NSW
+
+
+```{r, MaxEntPAPredsNSW}
+#| fig-height: 20
+#| fig-width: 12
+#| eval: true
+#| results: hide
+
+par(mfrow=c(11,5), mar=c(2,2,1,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.l$NSW), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+}, allC=AllCoefs.l$NSW)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+### NZ
+
+
+```{r, MaxEntPAPredsNZ}
+#| fig-height: 20
+#| fig-width: 12
+#| eval: true
+#| results: hide
+
+par(mfrow=c(ceiling(52/6),6), mar=c(2,2,1,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.lqpt$NZ), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+}, allC=AllCoefs.lqpt$NZ)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+### SA
+
+
+```{r, MaxEntPAPredsSA}
+#| fig-height: 10
+#| fig-width: 12
+#| eval: true
+#| results: hide
+
+par(mfrow=c(ceiling(30/6),6), mar=c(2,2,1,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.lqpt$SA), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+}, allC=AllCoefs.lqpt$SA)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+### SWI
+
+
+```{r, MaxEntPAPredsSWI}
+#| fig-height: 10
+#| fig-width: 12
+#| eval: true
+#| results: hide
+
+par(mfrow=c(ceiling(30/6),6), mar=c(2,2,1,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.lqpt$SWI), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+}, allC=AllCoefs.lqpt$SWI)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+
+
+
+## References

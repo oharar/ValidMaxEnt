@@ -1,0 +1,232 @@
+@article{SmithLevineTau,
+author = {Smith, Jeffrey R. and Levine, Jonathan M.},
+title = {Linking relative suitability to probability of occurrence in presence-only species distribution models: Implications for global change projections},
+journal = {Methods in Ecology and Evolution},
+volume = {16},
+number = {4},
+pages = {854-865},
+keywords = {biodiversity, climate change, MaxEnt, range size, SDMs, species richness},
+doi = {https://doi.org/10.1111/2041-210X.70003},
+url = {https://besjournals.onlinelibrary.wiley.com/doi/abs/10.1111/2041-210X.70003},
+eprint = {https://besjournals.onlinelibrary.wiley.com/doi/pdf/10.1111/2041-210X.70003},
+abstract = {Abstract Our ecological understanding of how biodiversity will respond to global change is to a large extent based on projections from presence-only species distribution models. Despite the incredible utility of these models, we know that the predictions they generate can be heavily influenced by user decisions about model structure or parameter choices. Here, we test how the function used to convert relative suitability to probably of occurrence in presence-only species distributions models can affect predictions of both the magnitude and location of biodiversity change. We used MaxEnt models to create maps of relative suitability for 354 avian species under both current climate conditions and climate conditions in the year 1981. In a back-casting analysis we tested how well three functions relating relative suitability to probably of occurrence perform in recovering observed changes in range size: (1) a logistic curve with informed, species-specific, prevalence values, (2) the default logistic curve, or (3) a commonly used statistical threshold. We then quantified the implications of these functions for projections of species' future range shifts with climate change. We found that using either the default logistic function or a common threshold function for habitat suitability tends to (1) estimate larger effects of past climate change on species range size than observed in the time-series data, (2) inflate projections of how much future climate change will impact species range size and (3) potentially misidentify the locations of greatest range expansion or contraction. We further provide a mathematical basis for these biases, suggesting their general applicability to other systems. Last, we show that these biases can be avoided by analysing proportional rather than absolute changes in range with climate change, and by abandoning the use of habitat suitability thresholds. Incorporating these practices can facilitate a more predictive use of species distribution models when forecasting the response of biodiversity to global change.},
+year = {2025}
+}
+
+@Article{bbsBayes,
+  title = {bbsBayes: An R Package for Hierarchical Bayesian Analysis of North American Breeding Bird Survey Data},
+  year = {2021},
+  journal = {Journal of Open Research Software},
+  volume = {9},
+  issue = {1},
+  doi = {10.5334/jors.329},
+  author = {Brandon P.M. Edwards and Adam C. Smith},
+}
+
+@Misc{BBSData,
+  title = {North American Breeding Bird Survey Dataset 1966 - 2019},
+  version = {2020},
+  publisher = {U.S. Geological Survey, Patuxent Wildlife Research Center.},
+  author = {Keith L. Pardieck and Dave J. {Ziolkowski Jr.} and M. Lutmerding and Veronica Aponte and Marie-Anne R. Hudson},
+}
+
+
+
+  @Manual{maxnet,
+    title = {maxnet: Fitting 'Maxent' Species Distribution Models with 'glmnet'},
+    author = {Steven Phillips},
+    year = {2021},
+    note = {R package version 0.1.4},
+    url = {https://CRAN.R-project.org/package=maxnet},
+  }
+  
+  
+  @article{RennerWarton,
+author = {Renner, Ian W. and Warton, David I.},
+title = {Equivalence of MAXENT and Poisson Point Process Models for Species Distribution Modeling in Ecology},
+journal = {Biometrics},
+volume = {69},
+number = {1},
+pages = {274-281},
+keywords = {Habitat modeling, Location-only, Maximum entropy, Poisson likelihood, Presence-only data, Use-availability},
+doi = {https://doi.org/10.1111/j.1541-0420.2012.01824.x},
+url = {https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1541-0420.2012.01824.x},
+eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1111/j.1541-0420.2012.01824.x},
+abstract = {Summary Modeling the spatial distribution of a species is a fundamental problem in ecology. A number of modeling methods have been developed, an extremely popular one being MAXENT, a maximum entropy modeling approach. In this article, we show that MAXENT is equivalent to a Poisson regression model and hence is related to a Poisson point process model, differing only in the intercept term, which is scale-dependent in MAXENT. We illustrate a number of improvements to MAXENT that follow from these relations. In particular, a point process model approach facilitates methods for choosing the appropriate spatial resolution, assessing model adequacy, and choosing the LASSO penalty parameter, all currently unavailable to MAXENT. The equivalence result represents a significant step in the unification of the species distribution modeling literature.},
+year = {2013}
+}
+
+@article{PagelMEE,
+author = {Pagel, Jörn and Anderson, Barbara J. and O'Hara, Robert B. and Cramer, Wolfgang and Fox, Richard and Jeltsch, Florian and Roy, David B. and Thomas, Chris D. and Schurr, Frank M.},
+title = {Quantifying range-wide variation in population trends from local abundance surveys and widespread opportunistic occurrence records},
+journal = {Methods in Ecology and Evolution},
+volume = {5},
+number = {8},
+pages = {751-760},
+keywords = {atlas data, Bayesian statistics, biogeography, butterflies, citizen science programme, conservation biology, count data, macroecology, state-space model},
+doi = {https://doi.org/10.1111/2041-210X.12221},
+url = {https://besjournals.onlinelibrary.wiley.com/doi/abs/10.1111/2041-210X.12221},
+eprint = {https://besjournals.onlinelibrary.wiley.com/doi/pdf/10.1111/2041-210X.12221},
+abstract = {Summary Species’ abundances vary in space and time. Describing these patterns is a cornerstone of macroecology. Moreover, trends in population size are an important criterion for the assessment of a species’ conservation status. Because abundance trends are not homogeneous in space, we need to quantify variation in abundance trends across the geographical range of a species. A basic difficulty exists in that data sets that cover large geographic areas rarely include population abundance data at high temporal resolution. Whilst both broad-scale geographic distribution data and site-specific population trend data are becoming more widely available, approaches are required which integrate these different types of data. We present a hierarchical model that integrates observations from multiple sources to estimate spatio-temporal abundance trends. The model links annual population densities on a spatial grid to both long-term count data and to opportunistic occurrence records from a citizen science programme. Specific observation models for both data types explicitly account for differences in data structure and quality. We test this novel method in a virtual study with simulated data and apply it to the estimation of abundance dynamics across the range of a butterfly species (Pyronia tithonus) in Great Britain between 1985 and 2004. The application to simulated and real data demonstrates how the hierarchical model structure accommodates various sources of uncertainty which occur at different stages of the link between observational data and the modelled abundance, thereby it accounts for these uncertainties in the inference of abundance variations. We show that by using hierarchical observation models that integrate different types of commonly available data sources, we can improve the estimates of variation in species abundances across space and time. This will improve our ability to detect regional trends and can also enhance the empirical basis for understanding range dynamics.},
+year = {2014}
+}
+
+@article{YackulicMEE,
+author = {Yackulic, Charles B. and Chandler, Richard and Zipkin, Elise F. and Royle, J. Andrew and Nichols, James D. and Campbell Grant, Evan H. and Veran, Sophie},
+title = {Presence-only modelling using MAXENT: when can we trust the inferences?},
+journal = {Methods in Ecology and Evolution},
+volume = {4},
+number = {3},
+pages = {236-243},
+keywords = {AUC, detection, occurrence, prevalence, sample selection bias},
+doi = {https://doi.org/10.1111/2041-210x.12004},
+url = {https://besjournals.onlinelibrary.wiley.com/doi/abs/10.1111/2041-210x.12004},
+eprint = {https://besjournals.onlinelibrary.wiley.com/doi/pdf/10.1111/2041-210x.12004},
+abstract = {Summary Recently, interest in species distribution modelling has increased following the development of new methods for the analysis of presence-only data and the deployment of these methods in user-friendly and powerful computer programs. However, reliable inference from these powerful tools requires that several assumptions be met, including the assumptions that observed presences are the consequence of random or representative sampling and that detectability during sampling does not vary with the covariates that determine occurrence probability. Based on our interactions with researchers using these tools, we hypothesized that many presence-only studies were ignoring important assumptions of presence-only modelling. We tested this hypothesis by reviewing 108 articles published between 2008 and 2012 that used the MAXENT algorithm to analyse empirical (i.e. not simulated) data. We chose to focus on these articles because MAXENT has been the most popular algorithm in recent years for analysing presence-only data. Many articles (87\%) were based on data that were likely to suffer from sample selection bias; however, methods to control for sample selection bias were rarely used. In addition, many analyses (36\%) discarded absence information by analysing presence–absence data in a presence-only framework, and few articles (14\%) mentioned detection probability. We conclude that there are many misconceptions concerning the use of presence-only models, including the misunderstanding that MAXENT, and other presence-only methods, relieve users from the constraints of survey design. In the process of our literature review, we became aware of other factors that raised concerns about the validity of study conclusions. In particular, we observed that 83\% of articles studies focused exclusively on model output (i.e. maps) without providing readers with any means to critically examine modelled relationships and that MAXENT's logistic output was frequently (54\% of articles) and incorrectly interpreted as occurrence probability. We conclude with a series of recommendations foremost that researchers analyse data in a presence–absence framework whenever possible, because fewer assumptions are required and inferences can be made about clearly defined parameters such as occurrence probability.},
+year = {2013}
+}
+
+@article{FithianHastie,
+author = {William Fithian and Trevor Hastie},
+title = {{Finite-sample equivalence in statistical models for presence-only data}},
+volume = {7},
+journal = {The Annals of Applied Statistics},
+number = {4},
+publisher = {Institute of Mathematical Statistics},
+pages = {1917 -- 1939},
+abstract = {Statistical modeling of presence-only data has attracted much recent attention in the ecological literature, leading to a proliferation of methods, including the inhomogeneous Poisson process (IPP) model, maximum entropy (Maxent) modeling of species distributions and logistic regression models. Several recent articles have shown the close relationships between these methods. We explain why the IPP intensity function is a more natural object of inference in presence-only studies than occurrence probability (which is only defined with reference to quadrat size), and why presence-only data only allows estimation of relative, and not absolute intensity of species occurrence. All three of the above techniques amount to parametric density estimation under the same exponential family model (in the case of the IPP, the fitted density is multiplied by the number of presence records to obtain a fitted intensity). We show that IPP and Maxent give the exact same estimate for this density, but logistic regression in general yields a different estimate in finite samples. When the model is misspecified—as it practically always is—logistic regression and the IPP may have substantially different asymptotic limits with large data sets. We propose “infinitely weighted logistic regression,” which is exactly equivalent to the IPP in finite samples. Consequently, many already-implemented methods extending logistic regression can also extend the Maxent and IPP models in directly analogous ways using this technique.},
+keywords = {case-control sampling, logistic regression, maximum entropy, Poisson process models, Presence-only data, species modeling},
+year = {2013},
+doi = {10.1214/13-AOAS667},
+URL = {https://doi.org/10.1214/13-AOAS667}
+}
+
+
+@article{ParkCasella,
+author = {Trevor Park and George Casella},
+title = {The Bayesian Lasso},
+journal = {Journal of the American Statistical Association},
+volume = {103},
+number = {482},
+pages = {681--686},
+year = {2008},
+publisher = {Taylor \& Francis},
+doi = {10.1198/016214508000000337},
+URL = {https://doi.org/10.1198/016214508000000337},
+eprint = { https://doi.org/10.1198/016214508000000337}
+}
+
+
+ @Article{disdat,
+    title = {Presence-only and presence-absence data for comparing species distribution modeling methods},
+    author = {{Elith} and {J.} and {Graham} and {C.H.} and {Valavi} and {R.} and {Abegg} and {M.} and {Bruce} and {C.} and {Ferrier} and {S.} and {Ford} and {A.} and {Guisan} and {A.} and {Hijmans} and {R.J.} and {Huettmann} and {F.} and {Lohmann} and {L.G.} and {Loiselle} and {B.A.} and {Moritz} and {C.} and {Overton} and {J.McC.} and {Peterson} and {A.T.} and {Phillips} and {S.} and {Richardson} and {K.} and {Williams} and {S.} and {Wiser} and {S.K.} and {Wohlgemuth} and T. & Zimmermann and {N.E.}},
+    journal = {Biodiversity Informatics},
+    year = {2020},
+    volume = {15},
+    pages = {69-80},
+    url = {https://journals.ku.edu/jbi},
+  }
+  
+  @article{LeeYawEcographyBadSDMs,
+author = {A. Lee-Yaw, Julie and L. McCune, Jenny and Pironon, Samuel and N. Sheth, Seema},
+title = {Species distribution models rarely predict the biology of real populations},
+journal = {Ecography},
+volume = {2022},
+number = {6},
+pages = {e05877},
+keywords = {abundance, ecological niche, genetic diversity, habitat suitability, independent data, occurrence, performance, population growth},
+doi = {https://doi.org/10.1111/ecog.05877},
+url = {https://nsojournals.onlinelibrary.wiley.com/doi/abs/10.1111/ecog.05877},
+eprint = {https://nsojournals.onlinelibrary.wiley.com/doi/pdf/10.1111/ecog.05877},
+abstract = {Species distribution models (SDMs) are widely used in ecology. In theory, SDMs capture (at least part of) species' ecological niches and can be used to make inferences about the distribution of suitable habitat for species of interest. Because habitat suitability is expected to influence population demography, SDMs have been used to estimate a variety of population parameters, from occurrence to genetic diversity. However, a critical look at the ability of SDMs to predict independent data across different aspects of population biology is lacking. Here, we systematically reviewed the literature, retrieving 201 studies that tested predictions from SDMs against independent assessments of occurrence, abundance, population performance, and genetic diversity. Although there is some support for the ability of SDMs to predict occurrence (~53\% of studies depending on how support was assessed), the predictive performance of these models declines progressively from occurrence to abundance, to population mean fitness, to genetic diversity. At the same time, we observed higher success among studies that evaluated performance for single versus multiple species, pointing to a possible publication bias. Thus, the limited accuracy of SDMs reported here may reflect the best-case scenario. We discuss the limitations of these models and provide specific recommendations for their use for different applications going forward. However, we emphasize that predictions from SDMs, especially when used to inform conservation decisions, should be treated as hypotheses to be tested with independent data rather than as stand-ins for the population parameters we seek to know.},
+year = {2022}
+}
+
+@article{wartonShepherd2010,
+author = {David I. Warton and Leah C. Shepherd},
+title = {{Poisson point process models solve the “pseudo-absence problem” for presence-only data in ecology}},
+volume = {4},
+journal = {The Annals of Applied Statistics},
+number = {3},
+publisher = {Institute of Mathematical Statistics},
+pages = {1383 -- 1402},
+keywords = {Habitat modeling, occurrence data, pseudo-absences, quadrature points, species distribution modeling},
+year = {2010},
+doi = {10.1214/10-AOAS331},
+URL = {https://doi.org/10.1214/10-AOAS331}
+}
+
+@article{AartsetalMEE2012,
+author = {Aarts, Geert and Fieberg, John and Matthiopoulos, Jason},
+title = {Comparative interpretation of count, presence–absence and point methods for species distribution models},
+journal = {Methods in Ecology and Evolution},
+volume = {3},
+number = {1},
+pages = {177-187},
+keywords = {accessibility, availability, case–control, line-transect, occupancy, presence-only, resource selection, telemetry, usage, utilization distribution},
+doi = {https://doi.org/10.1111/j.2041-210X.2011.00141.x},
+url = {https://besjournals.onlinelibrary.wiley.com/doi/abs/10.1111/j.2041-210X.2011.00141.x},
+eprint = {https://besjournals.onlinelibrary.wiley.com/doi/pdf/10.1111/j.2041-210X.2011.00141.x},
+abstract = {Summary 1. The need to understand the processes shaping population distributions has resulted in a vast increase in the diversity of spatial wildlife data, leading to the development of many novel analytical techniques that are fit-for-purpose. One may aggregate location data into spatial units (e.g. grid cells) and model the resulting counts or presence–absences as a function of environmental covariates. Alternatively, the point data may be modelled directly, by combining the individual observations with a set of random or regular points reflecting habitat availability, a method known as a use-availability design (or, alternatively a presence – pseudo-absence or case–control design). 2. Although these spatial point, count and presence–absence methods are widely used, the ecological literature is not explicit about their connections and how their parameter estimates and predictions should be interpreted. The objective of this study is to recapitulate some recent statistical results and illustrate that under certain assumptions, each method can be motivated by the same underlying spatial inhomogeneous Poisson point process (IPP) model in which the intensity function is modelled as a log-linear function of covariates. 3. The Poisson likelihood used for count data is a discrete approximation of the IPP likelihood. Similarly, the presence–absence design will approximate the IPP likelihood, but only when spatial units (i.e. pixels) are extremely small (Electric Journal of Statistics, 2010, 4, 1151–1201). For larger pixel sizes, presence–absence designs do not differentiate between one or multiple observations within each pixel, hence leading to information loss. 4. Logistic regression is often used to estimate the parameters of the IPP model using point data. Although the response variable is defined as 0 for the availability points, these zeros do not serve as true absences as is often assumed; rather, their role is to approximate the integral of the denominator in the IPP likelihood (The Annals of Applied Statistics, 2010, 4, 1383–1402). Because of this common misconception, the estimated exponential function of the linear predictor (i.e. the resource selection function) is often assumed to be proportional to occupancy. Like IPP and count models, this function is proportional to the expected density of observations. 5. Understanding these (dis-)similarities between different species distribution modelling techniques should improve biological interpretation of spatial models and therefore advance ecological and methodological cross-fertilization.},
+year = {2012}
+}
+
+
+@article{ElithetalStatsExplanation,
+author = {Elith, Jane and Phillips, Steven J. and Hastie, Trevor and Dudík, Miroslav and Chee, Yung En and Yates, Colin J.},
+title = {A statistical explanation of MaxEnt for ecologists},
+journal = {Diversity and Distributions},
+volume = {17},
+number = {1},
+pages = {43-57},
+keywords = {Absence, ecological niche, entropy, machine learning, presence-only, species distribution model},
+doi = {https://doi.org/10.1111/j.1472-4642.2010.00725.x},
+url = {https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1472-4642.2010.00725.x},
+eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1111/j.1472-4642.2010.00725.x},
+abstract = {Abstract MaxEnt is a program for modelling species distributions from presence-only species records. This paper is written for ecologists and describes the MaxEnt model from a statistical perspective, making explicit links between the structure of the model, decisions required in producing a modelled distribution, and knowledge about the species and the data that might affect those decisions. To begin we discuss the characteristics of presence-only data, highlighting implications for modelling distributions. We particularly focus on the problems of sample bias and lack of information on species prevalence. The keystone of the paper is a new statistical explanation of MaxEnt which shows that the model minimizes the relative entropy between two probability densities (one estimated from the presence data and one, from the landscape) defined in covariate space. For many users, this viewpoint is likely to be a more accessible way to understand the model than previous ones that rely on machine learning concepts. We then step through a detailed explanation of MaxEnt describing key components (e.g. covariates and features, and definition of the landscape extent), the mechanics of model fitting (e.g. feature selection, constraints and regularization) and outputs. Using case studies for a Banksia species native to south-west Australia and a riverine fish, we fit models and interpret them, exploring why certain choices affect the result and what this means. The fish example illustrates use of the model with vector data for linear river segments rather than raster (gridded) data. Appropriate treatments for survey bias, unprojected data, locally restricted species, and predicting to environments outside the range of the training data are demonstrated, and new capabilities discussed. Online appendices include additional details of the model and the mathematical links between previous explanations and this one, example code and data, and further information on the case studies.},
+year = {2011}
+}
+
+@inproceedings{PhillipsDudik,
+ author = {Phillips, Steven and Dud\'{\i}k, Miroslav},
+ booktitle = {Advances in Neural Information Processing Systems},
+ editor = {D. Koller and D. Schuurmans and Y. Bengio and L. Bottou},
+ pages = {},
+ publisher = {Curran Associates, Inc.},
+ title = {Generative and Discriminative Learning with Unknown Labeling Bias},
+ url = {https://proceedings.neurips.cc/paper_files/paper/2008/file/9cf81d8026a9018052c429cc4e56739b-Paper.pdf},
+ volume = {21},
+ year = {2008}
+}
+
+
+@article{CarrollErrorsinVariables,
+ ISSN = {00063444},
+ URL = {http://www.jstor.org/stable/2336392},
+ abstract = {We consider binary regression models when some of the predictors are measured with error. For normal measurement errors, structural maximum likelihood estimates are considered. We show that if the measurement error is large, the usual estimate of the probability of the event in question can be substantially in error, especially for high risk groups. In the situation of large measurement error, we investigate a conditional maximum likelihood estimator and its properties.},
+ author = {Raymond J. Carroll and Clifford H. Spiegelman and K. K. Gordon Lan and Kent T. Bailey and Robert D. Abbott},
+ journal = {Biometrika},
+ number = {1},
+ pages = {19--25},
+ publisher = {[Oxford University Press, Biometrika Trust]},
+ title = {On Errors-in-Variables for Binary Regression Models},
+ urldate = {2026-02-03},
+ volume = {71},
+ year = {1984}
+}
+
+@article{ValaviUsingDisDat,
+author = {Valavi, Roozbeh and Guillera-Arroita, Gurutzeta and Lahoz-Monfort, José  J. and Elith, Jane},
+title = {Predictive performance of presence-only species distribution models: a benchmark study with reproducible code},
+journal = {Ecological Monographs},
+volume = {92},
+number = {1},
+pages = {e01486},
+keywords = {boosted regression trees, down sampling, ecological niche model, ensemble modeling, imbalanced data, independent test data, machine learning, maxent, model evaluation, point process weighting, presence-background, random forest},
+doi = {https://doi.org/10.1002/ecm.1486},
+url = {https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1002/ecm.1486},
+eprint = {https://esajournals.onlinelibrary.wiley.com/doi/pdf/10.1002/ecm.1486},
+abstract = {Abstract Species distribution modeling (SDM) is widely used in ecology and conservation. Currently, the most available data for SDM are species presence-only records (available through digital databases). There have been many studies comparing the performance of alternative algorithms for modeling presence-only data. Among these, a 2006 paper from Elith and colleagues has been particularly influential in the field, partly because they used several novel methods (at the time) on a global data set that included independent presence–absence records for model evaluation. Since its publication, some of the algorithms have been further developed and new ones have emerged. In this paper, we explore patterns in predictive performance across methods, by reanalyzing the same data set (225 species from six different regions) using updated modeling knowledge and practices. We apply well-established methods such as generalized additive models and MaxEnt, alongside others that have received attention more recently, including regularized regressions, point-process weighted regressions, random forests, XGBoost, support vector machines, and the ensemble modeling framework biomod. All the methods we use include background samples (a sample of environments in the landscape) for model fitting. We explore impacts of using weights on the presence and background points in model fitting. We introduce new ways of evaluating models fitted to these data, using the area under the precision-recall gain curve, and focusing on the rank of results. We find that the way models are fitted matters. The top method was an ensemble of tuned individual models. In contrast, ensembles built using the biomod framework with default parameters performed no better than single moderate performing models. Similarly, the second top performing method was a random forest parameterized to deal with many background samples (contrasted to relatively few presence records), which substantially outperformed other random forest implementations. We find that, in general, nonparametric techniques with the capability of controlling for model complexity outperformed traditional regression methods, with MaxEnt and boosted regression trees still among the top performing models. All the data and code with working examples are provided to make this study fully reproducible.},
+year = {2022}
+}
+

@@ -1,0 +1,228 @@
+---
+title: "Validating SDMs"
+author: "Bob O'Hara"
+format: revealjs
+execute: 
+  cache: true
+---
+
+## Sorry....
+
+I have made this longer than usual because I have not had time to make it shorter.
+
+- Blaise Pascal
+
+```{r, SetUp}
+#| echo: false
+
+library(disdat)
+
+library(maxnet)
+library(disdat)
+library(future.apply)
+
+source("../MaxEntBayesFunctions.R")
+
+RemoveNames <- c("siteid", "spid", "x", "y", "occ", "group")
+
+NoCovars <- sapply(c("AWT", "CAN", "NSW", "NZ", "SA", "SWI"), function(region) {
+  ncol(disBg(region))-6
+})
+
+```
+
+## Exploring SDM validation
+
+An important topic!
+
+Can we do more than just produce a validation statistic like AUC or TSS?
+
+## Motivation
+
+![](SmithLevine.png)
+
+They fit MaxEnt model to eBird
+
+Validate on BBS
+
+## What got me started
+
+Their code is horrible
+
+- uses deprecated packages (sp!)
+- slow
+- uses JAGS instead of glm()
+- only shows something trivial (species vary in prevalence)
+
+## My thinking
+
+We fit an SDM to (e.g.) presence-only data.
+
+Calculate a relative suitability
+
+$$
+\hat{\eta}_s(i) = \sum_f \hat{\beta}_f x_f(i) - C^i_s
+$$
+
+- species $s$, site $i$
+- $\bar{\eta}_s() = 0$
+-  features $x_f$
+- $C^i_s$ = mean of $\hat{\eta}_s(i)$
+
+## What MaxEnt does
+
+Presence-only data: approximates point process model
+
+Select some background points
+
+Infinitely Weighted Logistic regression of whether a point is an observation or background
+
+- assumes $100 = \infty$
+
+End up with linear predictor: intercept meaningless
+
+## Predicting new data if the model is correct
+
+Predict onto presence/absence data (= survey data?) $Y_s(p) \in \{0,1\}$. 
+
+$\hat{\eta}_s(p) = \sum_f \hat{\beta}_f x_f(p)$ for new features $x^p_f$
+
+$g(Pr(Y_s(p)) = 1) = \alpha + \hat{\eta}_s(p) - C_s^p$
+
+where $C_s^p$ is the mean of $\hat{\eta}_s(p)$ over the predictions
+
+Classic point process: $g()$ is cloglog. Maximum entropy, $g()$ is logit
+
+## If the model is wrong
+
+Use logistic regression
+
+$g(Pr(Y_s(p)) = 1) = \alpha + \gamma(\hat{\eta}_s(p) - C_s^p)$
+
+If the model is right , we expect $\gamma < 1$ (because $\hat{\eta}_s(p)$ has uncertainty)
+
+If the model is wrong, we expect $\gamma \ne 1$
+
+ - wrong "at random" would give $\gamma < 1$
+ - if $\gamma < 0$ we are in trouble
+
+## Testing the idea
+
+Standardised data sets in R: `disdat` package. 6 sets of data: AWT, ..., SWI. 
+
+- 20 - 54 species per data set
+- 11 - 13 covariates per data set
+
+Presence only & presence-absence
+
+## Some Data
+
+Blue: presence only, grey: background
+Red: Presence, pink: absence
+
+```{r}
+#| echo: false
+source("../MaxEntBayesFunctions.R")
+PlotMap("swi01", dataname="SWI")
+
+```
+
+## Workflow
+
+- Fit the model to PO data with MaxEnt (ugh)
+- Get predictions
+- Fit models to PA data
+    - using predictions from MaxEnt 
+    - using MaxEnt features on PA data
+    
+## Fit the model with linear features
+
+
+
+```{r FitModels}
+#| echo: false
+Regions <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
+plan(multisession, workers = 6) # Run in parallel with 4 nodes (cores?)
+AllCoefs.l <- sapply(Regions, JustMaxEnt, remove=RemoveNames, classes="l", 
+                     valid = TRUE, pred=TRUE)
+AllCoefs.l.sp <- sapply(Regions, JustMaxEnt, remove=RemoveNames, classes="l", 
+                        valid = TRUE, otherSpBG=TRUE, pred=TRUE)
+
+```
+
+
+## Estimated Coefficients
+
+Pink: $0 < \gamma < 1$
+
+```{r}
+#| echo: false
+#| results: hide
+PlotCoefs <- function(nm, lst) {
+  Coefs.l <- lapply(lst[[nm]], function(l) l$coefficients)
+  Coefs <- t(list2DF(Coefs.l)); 
+  colnames(Coefs) <- names(lst[[nm]][[1]]$coefficients)
+#  PredRange <- range(c(0,1, pmax(min(Coefs[,"Pred"]),-10), pmin(max(Coefs[,"Pred"]),10)))
+  PredRange <- range(c(0,1, range(Coefs[,"Pred"])))
+  plot(Coefs, ylim=PredRange, type="n", xlab="", ylab="", main=nm) 
+  rect(-100, 0, 100, 1, col="pink", border=NA)
+  points(Coefs)
+  box()
+}
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.l), PlotCoefs, lst=AllCoefs.l)
+mtext("Intercept", 1, outer=TRUE)
+mtext("Slope", 2, outer=TRUE, line=0.5)
+
+```
+
+Negative values are bad (yes, Canada, I'm looking at you)
+
+## Presences of other species as pseudo-absences
+
+```{r}
+#| echo: false
+#| results: hide
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.l.sp), PlotCoefs, lst=AllCoefs.l.sp)
+mtext("Intercept", 1, outer=TRUE)
+mtext("Slope", 2, outer=TRUE, line=0.5)
+
+```
+
+Now South Africa is weird
+
+## What is going on in Canada?
+
+Biased data
+
+```{r}
+#| echo: false
+PlotMap("can02", dataname="CAN")
+
+```
+
+## What to do next?
+
+Uncertainty: 
+
+- MaxEnt does not produce standard errors
+- GLM standard errors were really small
+- running a full MaxEnt model with MCMC takes months 
+
+Look at relative values of intercepts in MaxEnt & validation models
+
+- are species more prevalent in one more prevalent in the other?
+
+## What does this mean?
+
+What does $\gamma > 1$ mean? Overfitting?
+
+- how do I work this out? Residuals?
+
+What is the story?
+
+
+PLOT PREDICTIONS AGAINST PREDICITONS FROM PA DATA
