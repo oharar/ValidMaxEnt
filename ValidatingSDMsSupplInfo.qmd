@@ -1,0 +1,269 @@
+---
+title: "ValidatingSDMSSupplInfo"
+author: "Bob O'Hara"
+format: html
+execute: 
+  cache: true
+
+---
+
+## Quarto
+
+```{r, Setup}
+#| echo: true
+#| message: false
+#| cache: false
+
+library(maxnet)
+library(disdat)
+library(future.apply)
+knitr::opts_chunk$set(dpi = 48)
+source("MaxEntBayesFunctions.R")
+load("AllBigObjects.RData")
+ 
+Regions <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
+RemoveNames <- c("siteid", "spid", "x", "y", "occ", "group")
+
+plan(multisession, workers = 6) ## Run in parallel on local computer, with 6 nodes (cores?)
+
+```
+
+
+# Models with linear features
+
+```{r, FitModelsl}
+#| warning: false
+#| message: false
+#| echo: true
+
+AllCoefs.l <- sapply(Regions, JustMaxEnt, 
+                   remove=RemoveNames, classes="l", valid = TRUE, pred=TRUE)
+AllCoefs.l.sp <- sapply(Regions, JustMaxEnt, 
+                   remove=RemoveNames, classes="l", valid = TRUE, otherSpBG=TRUE, pred=TRUE)
+
+```
+
+
+## Supplementary Figures
+
+Plot of models with linear features
+
+```{r}
+#| echo: false
+#| results: hide
+#| fig-cap: "Estimated intercept and slope for calibration of predictions to presence absence data, from Maxent model with linear features."
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.l), PlotCoefs, lst=AllCoefs.l)
+mtext("Intercept", 1, outer=TRUE)
+mtext("Slope", 2, outer=TRUE, line=0.5)
+
+```
+
+ Plot of models with linear features, using presences of other species as background points
+
+```{r}
+#| echo: false
+#| results: hide
+#| fig-cap: "Estimated intercept and slope for calibration of predictions to presence absence data, from Maxent model with linear features and observations of non-target species as pseudo-absences."
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.l.sp), PlotCoefs, lst=AllCoefs.l.sp)
+mtext("Intercept", 1, outer=TRUE)
+mtext("Slope", 2, outer=TRUE, line=0.5)
+
+```
+
+
+```{r PlotTradGoF}
+#| echo: false
+#| results: hide
+#| eval: false
+#| fig-cap: "Estimated AUC and TSS for calibration of predictions to presence absence data, from Maxent model with all features."
+
+PlotTradGoF <- function(nm, lst) {
+
+  plot(lst[[nm]]$AUC, lst[[nm]]$TSS, xlim=c(0,1), ylim=c(-1,1), type="n", xlab="", ylab="", main=nm) 
+  rect(-100, -100, 100, 0.7, col="mistyrose", border=NA)
+  rect(-100, -100, 0.7, 100, col="mistyrose", border=NA)
+  rect(-100, -100, 0.7, 0.7, col="pink", border=NA)
+  rect(-100, -100, 100, 0, col="red", border=NA)
+  rect(-100, -100, 0.5, 100, col="red", border=NA)
+  points(lst[[nm]]$AUC, lst[[nm]]$TSS)
+  box()
+}
+# PlotTradGoF(nm="CAN", lst=GoFstats)
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(GoFstats), PlotTradGoF, lst=GoFstats)
+mtext("AUC", 1, outer=TRUE)
+mtext("TSS", 2, outer=TRUE, line=0.5)
+
+# lapply(GoFstats, function(x) mean(x$AUC<0.7))
+# lapply(GoFstats, function(x) sum(x$AUC<0.5))
+
+```
+
+
+### AWT
+
+```{r, MaxEntPAPredsAWT}
+#| fig-height: 16
+#| fig-width: 12
+#| results: hide
+#| echo: false
+#| dev: png
+#| fig-cap: "Predictions for presence from models fitted to presence-absence data and presence-only data, for the AWT data"
+
+par(mfrow=c(ceiling(40/6), 6), mar=c(2,2,1,1), oma=c(2,2,0,0))
+CorrAWT <- sapply(names(AllCoefs.lqpth$AWT), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+  cor(lst$pred[,"PA"], lst$pred[,"valid"])
+}, allC=AllCoefs.lqpth$AWT)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+### CAN
+
+
+```{r, MaxEntPAPredsCAN}
+#| fig-height: 8
+#| fig-width: 12
+#| eval: true
+#| echo: false
+#| results: hide
+#| dev: png
+#| fig-cap: "Predictions for presence from models fitted to presence-absence data and presence-only data, for the CAN data"
+
+par(mfrow=c(ceiling(20/6), 6), mar=c(2,2,1,1), oma=c(2,2,0,0))
+CorrCAN <- sapply(names(AllCoefs.lqpth$CAN), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+  cor(lst$pred[,"PA"], lst$pred[,"valid"])
+}, allC=AllCoefs.lqpth$CAN)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+### NSW
+
+
+```{r, MaxEntPAPredsNSW}
+#| fig-height: 20
+#| fig-width: 12
+#| eval: true
+#| echo: false
+#| results: hide
+#| fig-cap: "Predictions for presence from models fitted to presence-absence data and presence-only data, for the NSW data"
+
+par(mfrow=c(11,5), mar=c(2,2,1,1), oma=c(2,2,0,0))
+CorrNSW <- sapply(names(AllCoefs.lqpth$NSW), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+  cor(lst$pred[,"PA"], lst$pred[,"valid"])
+}, allC=AllCoefs.lqpth$NSW)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+### NZ
+
+
+```{r, MaxEntPAPredsNZ}
+#| fig-height: 20
+#| fig-width: 12
+#| eval: true
+#| echo: false
+#| results: hide
+#| dev: png
+#| fig-cap: "Predictions for presence from models fitted to presence-absence data and presence-only data, for the NZ data"
+
+par(mfrow=c(ceiling(52/6),6), mar=c(2,2,1,1), oma=c(2,2,0,0))
+CorrNZ <- sapply(names(AllCoefs.lqpth$NZ), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+  cor(lst$pred[,"PA"], lst$pred[,"valid"])
+}, allC=AllCoefs.lqpth$NZ)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+```
+
+### SA
+
+
+```{r, MaxEntPAPredsSA}
+#| fig-height: 10
+#| fig-width: 12
+#| eval: true
+#| echo: false
+#| results: hide
+#| dev: png
+#| fig-cap: "Predictions for presence from models fitted to presence-absence data and presence-only data, for the SA data"
+
+par(mfrow=c(ceiling(30/6),6), mar=c(2,2,1,1), oma=c(2,2,0,0))
+CorrSA <- sapply(names(AllCoefs.lqpth$SA), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+    cor(lst$pred[,"PA"], lst$pred[,"valid"])
+}, allC=AllCoefs.lqpth$SA)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+### SWI
+
+
+```{r, MaxEntPAPredsSWI}
+#| fig-height: 10
+#| fig-width: 12
+#| eval: true
+#| echo: false
+#| results: hide
+#| dev: png
+#| fig-cap: "Predictions for presence from models fitted to presence-absence data and presence-only data, for the SWI data"
+
+par(mfrow=c(ceiling(30/6),6), mar=c(2,2,1,1), oma=c(2,2,0,0))
+CorrSWI <- sapply(names(AllCoefs.lqpth$SWI), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+  cor(lst$pred[,"PA"], lst$pred[,"valid"])
+}, allC=AllCoefs.lqpth$SWI)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+```
+
+
+
+
+```{r PLotCors}
+#| echo: false
+#| fig-cap: "More Correlations because we don't have enough"
+
+Corrs <- data.frame(
+  Region = rep(1:6, times=c(length(CorrAWT), length(CorrCAN), length(CorrNSW), 
+              length(CorrNZ), length(CorrSA), length(CorrSWI))),
+    Cor = c(unlist(CorrAWT), unlist(CorrCAN), unlist(CorrNSW), 
+            unlist(CorrNZ), unlist(CorrSA), unlist(CorrSWI))
+)
+
+par(mfrow=c(1,1), mar=c(4.1,6,1,1))
+plot(Corrs$Cor, jitter(Corrs$Region), yaxt="n", xlim=c(-1,1),
+     xlab="Correlation", ylab="")
+axis(2, at=1:6, labels = Regions, las=1)
+abline(v=0, lty=3)
+```
+
+

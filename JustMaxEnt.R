@@ -190,6 +190,17 @@ mtext("Slope", 2, outer=TRUE)
 
 
 
+par(mfrow=c(5,4), mar=c(2,2,1,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.l$CAN), function(nm, allC) {
+  lst <- allC[[nm]]
+  plot(lst$pred[,"PA"], lst$pred[,"valid"], xlab="", ylab="", 
+       main=nm)
+}, allC=AllCoefs.l$CAN)
+mtext("Fitted to PA data", 1, outer=TRUE)
+mtext("Fitted to PO data", 2, outer=TRUE)
+
+
+
 
 pred.l <- AllCoefs.l$CAN$can01$pred[,"PA"] + AllCoefs.l$CAN$can01$coefficients["(Intercept)"]
 data <- disPa("CAN")$can01

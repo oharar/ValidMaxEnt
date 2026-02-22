@@ -124,7 +124,8 @@ eprint = { https://doi.org/10.1198/016214508000000337}
     year = {2020},
     volume = {15},
     pages = {69-80},
-    url = {https://journals.ku.edu/jbi},
+    doi = {10.17161/bi.v15i2.13384},
+    url = {https://doi.org/10.17161/bi.v15i2.13384},
   }
   
   @article{LeeYawEcographyBadSDMs,
@@ -228,5 +229,38 @@ url = {https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1002/ecm.1486},
 eprint = {https://esajournals.onlinelibrary.wiley.com/doi/pdf/10.1002/ecm.1486},
 abstract = {Abstract Species distribution modeling (SDM) is widely used in ecology and conservation. Currently, the most available data for SDM are species presence-only records (available through digital databases). There have been many studies comparing the performance of alternative algorithms for modeling presence-only data. Among these, a 2006 paper from Elith and colleagues has been particularly influential in the field, partly because they used several novel methods (at the time) on a global data set that included independent presence–absence records for model evaluation. Since its publication, some of the algorithms have been further developed and new ones have emerged. In this paper, we explore patterns in predictive performance across methods, by reanalyzing the same data set (225 species from six different regions) using updated modeling knowledge and practices. We apply well-established methods such as generalized additive models and MaxEnt, alongside others that have received attention more recently, including regularized regressions, point-process weighted regressions, random forests, XGBoost, support vector machines, and the ensemble modeling framework biomod. All the methods we use include background samples (a sample of environments in the landscape) for model fitting. We explore impacts of using weights on the presence and background points in model fitting. We introduce new ways of evaluating models fitted to these data, using the area under the precision-recall gain curve, and focusing on the rank of results. We find that the way models are fitted matters. The top method was an ensemble of tuned individual models. In contrast, ensembles built using the biomod framework with default parameters performed no better than single moderate performing models. Similarly, the second top performing method was a random forest parameterized to deal with many background samples (contrasted to relatively few presence records), which substantially outperformed other random forest implementations. We find that, in general, nonparametric techniques with the capability of controlling for model complexity outperformed traditional regression methods, with MaxEnt and boosted regression trees still among the top performing models. All the data and code with working examples are provided to make this study fully reproducible.},
 year = {2022}
+}
+
+@book{abelson1995statistics,
+  title={Statistics as Principled Argument},
+  author={Abelson, R.P.},
+  isbn={9780805805277},
+  lccn={94034725},
+  url={https://books.google.no/books?id=TgmbosIA7N0C},
+  year={1995},
+  publisher={L. Erlbaum Associates}
+}
+
+@inproceedings{Box1979RobustnessIT,
+  title={Robustness in the Strategy of Scientific Model Building.},
+  author={G. E. P. Box},
+  year={1979},
+  url={https://api.semanticscholar.org/CorpusID:121999337}
+}
+
+
+@article{DormannSpatialAutocorrelation,
+author = {Dormann, Carsten F.},
+title = {Effects of incorporating spatial autocorrelation into the analysis of species distribution data},
+journal = {Global Ecology and Biogeography},
+volume = {16},
+number = {2},
+pages = {129-138},
+keywords = {Autologistic regression, autoregressive model, spatial statistics, spatial autocorrelation, species distribution analysis, statistical biogeography},
+doi = {https://doi.org/10.1111/j.1466-8238.2006.00279.x},
+url = {https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1466-8238.2006.00279.x},
+eprint = {https://onlinelibrary.wiley.com/doi/pdf/10.1111/j.1466-8238.2006.00279.x},
+abstract = {ABSTRACT Aim  Spatial autocorrelation (SAC) in data, i.e. the higher similarity of closer samples, is a common phenomenon in ecology. SAC is starting to be considered in the analysis of species distribution data, and over the last 10 years several studies have incorporated SAC into statistical models (here termed ‘spatial models’). Here, I address the question of whether incorporating SAC affects estimates of model coefficients and inference from statistical models. Methods  I review ecological studies that compare spatial and non-spatial models. Results  In all cases coefficient estimates for environmental correlates of species distributions were affected by SAC, leading to a mis-estimation of on average c. 25\%. Model fit was also improved by incorporating SAC. Main conclusions  These biased estimates and incorrect model specifications have implications for predicting species occurrences under changing environmental conditions. Spatial models are therefore required to estimate correctly the effects of environmental drivers on species present distributions, for a statistically unbiased identification of the drivers of distribution, and hence for more accurate forecasts of future distributions.},
+year = {2007}
 }
 
