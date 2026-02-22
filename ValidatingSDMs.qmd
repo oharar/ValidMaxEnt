@@ -16,7 +16,7 @@ library(maxnet)
 library(disdat)
 library(future.apply)
 # knitr::opts_chunk$set(dpi = 48)
-source("MaxEntBayesFunctions.R")
+source("ValidatingSDMsFunctions.R")
 
 UpdateEverything <- FALSE
 Regions <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
@@ -85,12 +85,15 @@ Compare to simulations, where model is true.
 #| message: false
 #| eval: true
 
-if(!file.exists("AllBigObjects.RData") | UpdateEverything) {
+if(!file.exists("Results/AllCoefs.RData") | UpdateEverything) {
   # Fit MaxEnt models with all features
   AllCoefs.lqpth <- sapply(Regions, JustMaxEnt, verbose=FALSE,
                            remove=RemoveNames, classes="lqpth", valid = TRUE, pred=TRUE)
   AllCoefs.lqpth.sp <- sapply(Regions, JustMaxEnt, verbose=FALSE,
                               remove=RemoveNames, classes="lqpth", valid = TRUE, otherSpBG=TRUE, pred=TRUE)
+  save(AllCoefs.lqpth, AllCoefs.lqpth.sp, file="Results/AllCoefs.RData")
+} else {
+  load("Results/AllCoefs.RData")
 }
 ```
 
@@ -120,12 +123,11 @@ if(!file.exists("AllBigObjects.RData") | UpdateEverything) {
 #      cat(reg, " done\n")
     Corrs
   })
-
     #  message(reg, " done")
   
-  save(AllCoefs.lqpth, AllCoefs.lqpth.sp, Correlations, file="AllBigObjects.RData")  
+  save(Correlations, file="Results/Correlations.RData")  
 } else {
-  load("AllBigObjects.RData")
+  load("Results/Correlations.RData")
 }
 
 ```
