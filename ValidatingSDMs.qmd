@@ -18,7 +18,7 @@ library(future.apply)
 # knitr::opts_chunk$set(dpi = 48)
 source("ValidatingSDMsFunctions.R")
 
-UpdateEverything <- FALSE
+UpdateEverything <- TRUE
 Regions <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
 RemoveNames <- c("siteid", "spid", "x", "y", "occ", "group",  "PresAbs")
 
@@ -104,23 +104,16 @@ if(!file.exists("Results/AllCoefs.RData") | UpdateEverything) {
 #| message: false
 #| eval: true
 
-if(!file.exists("AllBigObjects.RData") | UpdateEverything) {
+if(!file.exists("Results/Correlations.RData") | UpdateEverything) {
   
   #  Simulations, correlations of models fitted to PO and PA data
   Correlations <- lapply(Regions, function(reg, nsim=2) {
-#      cat(reg, " started\n")
     bgEnv <- disBg(reg)
     SpNames <- unique(disPo(reg)$spid)
-    
-    # Corrs <- sapply(SpNames, function(spm, nsim) {
-    #   cat("   doing", spm, "\n")
-    #   SimCorrReg(spm, stats="corr", nsim=nsim)
-    # }, nsim=nsim)
-    
+
     Corrs <- future_sapply(SpNames, SimCorrReg,
                            stats="corr", nsim=nsim,
                            future.seed=TRUE)
-#      cat(reg, " done\n")
     Corrs
   })
     #  message(reg, " done")
@@ -268,7 +261,7 @@ box()
 
 
 ExtractGof <- function(lst.sp, model="maxnet") {
-  c(beta = as.numeric(lst.sp$coefficients["Pred"]), AUC = lst.sp$valid["AUC", model],
+  c(beta = as.numeric(lst.sp$coefficients["MxPred"]), AUC = lst.sp$valid["AUC", model],
     TSS = lst.sp$valid["TSS", model])
 }
 
@@ -286,6 +279,8 @@ PlotGoF <- function(nm, lst, statx, staty, ...) {
   
   points(df[,statx], df[,staty]) 
 }
+ PlotGoF(nm=names(GoFstats)[1], lst=GoFstats, statx="AUC", staty="beta", xlim=c(0,1))
+
 
 par(mfcol=c(3,4), mar=c(3,2,4,1), oma=c(2,2,0,0))
 sapply(names(GoFstats), PlotGoF, lst=GoFstats, statx="AUC", staty="beta", xlim=c(0,1))

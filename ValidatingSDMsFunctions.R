@@ -77,7 +77,7 @@ FitMaxEntToSp <- function(sp, classes, verbose=FALSE, link="logit",
   PAdata$p.p <- as.numeric(as.character(PAdata$PresAbs)) # convert PA to numeric from logical
   
   # better to pass these into GetPAdata()?
-  if(!is.null(attr(POdata, "means"))) {
+  if(!is.null(attr(POdata, "envmeans"))) {
     PAdata[,names(attr(POdata, "envmeans"))] <- sweep(PAdata[,names(attr(POdata, "envmeans"))], 
                                                       2, attr(POdata, "envmeans"), "-")
     PAdata[,names(attr(POdata, "envsds"))] <- sweep(PAdata[,names(attr(POdata, "envsds"))], 
