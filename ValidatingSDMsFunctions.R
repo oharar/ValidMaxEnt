@@ -34,8 +34,8 @@ CalcFitStats <- function(pres, pred, thresh=NULL) {
   PredOne <- pred > thresh
   
   #  ConfMat <- table(pres, PredOne)
-  Sens <- sum(PredOne*pres)/sum(PredOne)
-  Spec <- sum((1-PredOne)*(1-pres))/sum(1-PredOne)
+  Sens <- sum(PredOne*pres)/sum(PredOne + 1e-6)
+  Spec <- sum((1-PredOne)*(1-pres))/sum(1-PredOne + 1e-6)
   TSS <- Sens + Spec - 1
   AUC <- Metrics::auc(pres, pred)
   c(Sensitivity = Sens, Specificity = Spec, TSS=TSS, AUC=AUC)  
@@ -71,7 +71,6 @@ FitMaxEntToSp <- function(sp, classes, verbose=FALSE, link="logit",
   
   if(verbose) message("Maxent for ", sp, " done")
   
-  # Validate on PA data
   # Get PA data and centre
   PAdata <- GetPAdata(sp=sp, scale=FALSE)
   PAdata$p.p <- as.numeric(as.character(PAdata$PresAbs)) # convert PA to numeric from logical
@@ -84,78 +83,144 @@ FitMaxEntToSp <- function(sp, classes, verbose=FALSE, link="logit",
                                                     2, attr(POdata, "envsds"), "/")
   }
   
-  # Validate MaxEnt model
-  
-  PAdata$MxPred <-  predict(MaxNet.mod, PAdata, type="link")
-  PAdata$MxPred <-  PAdata$MxPred - mean(PAdata$MxPred)
-  validmod <- glm(PresAbs~MxPred, data=PAdata, family=binomial(link))
+  # Validate MaxEnt model, and calculate predictions. 
+  # If the model dodn't work, create lots of NAs
+  if(!is.null(MaxNet.mod)) {
+    PAdata$MxPred <-  predict(MaxNet.mod, PAdata, type="link")
+    PAdata$MxPred <-  PAdata$MxPred - mean(PAdata$MxPred)
+    validmod <- glm(PresAbs~MxPred, data=PAdata, family=binomial(link))
+    PAdata$valid <- predict(validmod, newdata=PAdata, type = "link")
+    
+    if(prob) {
+      PAdata$MxProb <- predict(MaxNet.mod, PAdata, type="logistic")
+      PAdata$validProb <- predict(validmod, newdata=PAdata, type = "response")
+    }
+    # Create results: more terms get added later
+    res <- list(coefficients = coef(validmod),
+                alpha = MaxNet.mod$alpha, 
+                confint = confint(validmod))
+    if(savemodels) {
+      res$MaxEnt <- MaxNet.mod
+      res$valid <- validmod
+    }
+    
+  } else {
+    PAdata$MxPred <- PAdata$valid <- PAdata$validProb <- PAdata$MxProb <- rep(NA,nrow(PAdata))
+    res <- list(coefficients = NA, alpha = NA, confint = NA)
+  }
   
   # Fit MaxEnt model to PA data as PA
+  
   PAmod <- FitMaxEnt(dat=PAdata, EnvNames=EnvNames, RespName="p.p", 
                      PA=TRUE, classes=classes)
+  if(!is.null(PAmod)) {
+    PAdata$PApred <- predict(PAmod, newdata=PAdata[,EnvNames], type = "link")
+    if(prob) {
+      PAdata$PAprob <- predict(PAmod, newdata=PAdata[,EnvNames], type = "logistic")
+    }
+    if(savemodels) res$PAMaxEnt <- PAmod
+    
+  } else {
+    PAdata$PApred <- rep(NA,nrow(PAdata))
+  }
   
   if(verbose) message("Validation for ", sp, " done")
   # Combine predictions  
   if(pred | valid) {
     if(!is.null(PAmod)) {
       Predicted <- data.frame(maxnet = PAdata$MxPred,
-                              valid = predict(validmod, newdata=PAdata, type = "link"),
-                              PA = predict(PAmod, newdata=PAdata[,EnvNames], type = "link")
+                              valid = PAdata$valid,
+                              PA = PAdata$PApred
       )  
+      Predicted <- apply(Predicted, 2, scale, scale=FALSE) # Mean centre
+      res$pred <- Predicted
+      
     } else {
       Predicted <- NULL
     }
     
     # Return probabilities
     if(prob) {
-      if(!is.null(PAmod)) {
-        Predicted.prob <- data.frame(maxnet = predict(MaxNet.mod, PAdata, type="logistic"),
-                                     valid = predict(validmod, newdata=PAdata, type = "response"),
-                                     PA = predict(PAmod, newdata=PAdata[,EnvNames], type = "logistic")
-        )
-      } else {
-        Predicted.prob <- NULL
-      }
-      
+      Predicted.prob <- data.frame(maxnet = PAdata$MxProb,
+                                   valid = PAdata$validProb,
+                                   PA = c(PAdata$PAprob))
+      res$pred.prob <- Predicted.prob
     }
-    Predicted <- apply(Predicted, 2, scale, scale=FALSE) # Mean centre
+    
   }
+  
   # Calculate validation Statistics
-  if(valid) {
+  if(valid & !is.null(Predicted)) {
     Valid <- apply(Predicted, 2, function(pred, pres)  {
-      CalcFitStats(pres=pres, pred=pred, thresh=NULL)
+      res$valid <- CalcFitStats(pres=pres, pred=pred, thresh=NULL)
     }, pres=PAdata$p.p)
+    res$Valid <- Valid
   }
-  res <- list(coefficients = coef(validmod),
-              alpha = MaxNet.mod$alpha, 
-              confint = confint(validmod))
-  if(pred) {
-    res$pred <- Predicted
-    if(prob) res$pred.prob <- Predicted.prob
-  }
-  if(valid) res$valid <- Valid
-  if(savemodels) {
-    res$MaxEnt <- MaxNet.mod
-    res$valid <- validmod
-    res$PAMaxEnt <- PAmod
-  }
-  res
+  return(res)
 }
 
+# Get data and fit models. 
+# sp: species
+# classes: classes of MaxEnt model. Defaults to "l"
+# verbose: Should progress be reported? Defaults to FALSE
+# sim: Should simulated data be used? Defaults to FALSE,
+# future.seed: Should this be future-proved for aprallelisation?
+# link: link function. Default: logit=link, 
+#  ...: other arguments thrown around
+GetRes <- function(sp, classes="l", verbose=verbose, sim=FALSE, 
+                   future.seed=TRUE, link="logit", onlySumm = FALSE, ...) {
+  if(sim) {
+    Data <- SimStatsFromData(sp) #, ...)
+  } else {
+    Data <- GetData(sp, ...)
+  }
+  FM <- FitModels(Data, classes=classes, verbose=verbose) #, ...)  
+
+  if(onlySumm) {
+    res <- c(corModels = ifelse(is.null(FM$pred), NA, cor(FM$pred[,"maxnet"]), c(FM$pred[,"PA"])),
+             AUC = ifelse(is.null(FM$valid), NA, FM$valid["AUC", "maxnet"]),
+             TSS = ifelse(is.null(FM$pred), NA, FM$valid["TSS", "maxnet"]),
+             beta = ifelse(is.null(FM$coefficients), NA, FM$coefficients["MxPred"]))
+    return(res)
+  } else {
+    return(FM)
+  }
+}
 
 # Just fit & validate maxEnt
-JustMaxEnt <- function(region, remove, classes="l", verbose=FALSE, 
+JustMaxEnt <- function(region, remove=c("siteid", "spid", "x", "y", "occ", "group"), 
+                       classes="l", verbose=FALSE, POthreshold = 20, 
                        link="logit", ...) {
   require(disdat)
   require(maxnet)
   require(future.apply)
   bgEnv <- disBg(region)
   EnvNames <- names(bgEnv)[!(names(bgEnv)%in%remove)]
-  SpNames <- unique(disPo(region)$spid)
+  Spp <- table(disPo(region)$spid)
+  SpNames <- names(Spp)[Spp>=POthreshold]
   
   #  sp <- SpNames[38]
-  #  if(region=="SWI") classes <-"l"
-  Coefs <- future_sapply(SpNames, FitMaxEntToSp, 
+  #  Coefs <- future_sapply(SpNames, FitMaxEntToSp, 
+  Coefs <- future_sapply(SpNames, GetRes, 
+                         classes=classes, verbose=verbose, 
+                         future.seed=TRUE, link=link, simplify=FALSE, ...)
+  Coefs
+}
+
+# Just fit & validate maxEnt
+JustSimMaxEnt <- function(region, remove=c("siteid", "spid", "x", "y", "occ", "group"), 
+                          classes="l", verbose=FALSE, link="logit", POthreshold = 20, ...) {
+  require(disdat)
+  require(maxnet)
+  require(future.apply)
+  bgEnv <- disBg(region)
+  EnvNames <- names(bgEnv)[!(names(bgEnv)%in%remove)]
+  Spp <- table(disPo(region)$spid)
+  SpNames <- names(Spp)[Spp>=POthreshold]
+  
+  #  sp <- SpNames[38]
+  #  Coefs <- future_sapply(SpNames, FitMaxEntToSp, 
+  Coefs <- future_sapply(SpNames, GetRes, sim=TRUE, 
                          classes=classes, verbose=verbose, 
                          future.seed=TRUE, link=link, simplify=FALSE, ...)
   Coefs
@@ -181,7 +246,8 @@ PlotCoefs <- function(nm, lst, AddPoints=FALSE, AddCIs=TRUE) {
   }
   
   plot(Coefs, xlim=IntRange, ylim=PredRange, type="n", xlab="", ylab="", main=nm) 
-  rect(-100, 0, 100, 1, col="pink", border=NA)
+  rect(-100, 0, 100, 1, col="mistyrose", border=NA)
+  rect(-100, 0, 100, 0.7, col="pink", border=NA)
   if(AddPoints) points(Coefs)
   if(AddCIs) {
     segments(CIs[,"(Intercept):2.5 %"], Coefs[, grep("Pred", colnames(Coefs))], 
@@ -224,8 +290,8 @@ ConvertFactors <- function(dat, region) {
 #  x, y: location(?)
 #  then environmental covariates
 
-GetPAdata <- function(sp, removenames = c("siteid", "spid", "x", "y", "occ", "group"), 
-                      scale=TRUE) {
+GetPAdata <- function(sp, removenames = c("siteid", "spid", "x", "y", "occ", "group", "geometry"), 
+                      scale=TRUE, sf=FALSE) {
   region <- toupper(gsub("[0-9]*", "", sp))
   
   if(region%in%c("NSW", "AWT")) {
@@ -241,17 +307,21 @@ GetPAdata <- function(sp, removenames = c("siteid", "spid", "x", "y", "occ", "gr
   PA[,sp] <- factor(PA[,sp], levels=c(0,1))
   names(PA)[names(PA)==sp] <- "PresAbs" # change name for consistency
   
-  if(scale) {
-    EnvNamesNoFactor <- names(PAEnv)[!names(PAEnv)%in%removenames & !sapply(PAEnv, is.factor)]
-    means <- apply(PAEnv[,EnvNamesNoFactor], 2, mean)
-    sds <- apply(PAEnv[,EnvNamesNoFactor], 2, sd)
-    PAEnv[,EnvNamesNoFactor] <- scale(PAEnv[,EnvNamesNoFactor])
-    attr(PAEnv, "envmeans") <- means
-    attr(PAEnv, "envsds") <- sds
-    
+  PAdata <- merge(PA, PAEnv, by="siteid")
+  
+  if(sf) {
+    PAdata <- sf::st_as_sf(PAdata, coords = c("x", "y"), crs = disCRS(region)) # subset the species
   }
   
-  PAdata <- merge(PA, PAEnv, by="siteid")
+  if(scale) {
+    EnvNamesNoFactor <- names(PAdata)[!names(PAdata)%in%removenames & !sapply(PAdata, is.factor)]
+    means <- apply(PAdata[,EnvNamesNoFactor, drop=TRUE], 2, mean)
+    sds <- apply(PAdata[,EnvNamesNoFactor, drop=TRUE], 2, sd)
+    PAdata[,EnvNamesNoFactor] <- scale(PAdata[,EnvNamesNoFactor, drop=TRUE])
+    attr(PAdata, "envmeans") <- means
+    attr(PAdata, "envsds") <- sds
+  }
+  
   PAdata
 }
 
@@ -259,8 +329,8 @@ GetPAdata <- function(sp, removenames = c("siteid", "spid", "x", "y", "occ", "gr
 # Get PO data
 # Returns data frame with "occ, a 0/1 integeter: 0=background, 1=presence, 
 #  and columns of the environmental coavriates, converted to factors when appropriate.
-GetPOdata <- function(sp, removenames = c("siteid", "spid", "x", "y", "occ", "group"), 
-                      otherSpBG=FALSE, scale=TRUE) {
+GetPOdata <- function(sp, removenames = c("siteid", "spid", "x", "y", "occ", "group", "geometry"), 
+                      otherSpBG=FALSE, scale=TRUE, sf=FALSE) {
   region <- toupper(gsub("[0-9]*", "", sp))
   
   if(otherSpBG) {
@@ -275,21 +345,61 @@ GetPOdata <- function(sp, removenames = c("siteid", "spid", "x", "y", "occ", "gr
     bgEnv <- disBg(region)
   }
   EnvNames <- names(bgEnv)[!(names(bgEnv)%in%removenames)]
-  Pres <- disPo(region)[disPo(region)$spid==sp,c("occ", EnvNames)]
+  Pres <- disPo(region)[disPo(region)$spid==sp,c("occ", "x", "y", EnvNames)]
   
-  dat <- rbind(Pres, bgEnv[,c("occ", EnvNames)])
+  dat <- rbind(Pres, bgEnv[,c("occ", "x", "y", EnvNames)])
   dat <- ConvertFactors(dat, region)
   
+  if(sf) {
+    dat <- sf::st_as_sf(dat, coords = c("x", "y"), crs = disCRS(region)) # subset the species
+  }
   if(scale) {
     EnvNamesNoFactor <- names(dat)[!names(dat)%in%removenames & !sapply(dat, is.factor)]
-    means <- apply(dat[,EnvNamesNoFactor], 2, mean)
-    sds <- apply(dat[,EnvNamesNoFactor], 2, sd)
-    dat[,EnvNamesNoFactor] <- scale(dat[,EnvNamesNoFactor])
+    means <- apply(dat[,EnvNamesNoFactor, drop=TRUE], 2, mean)
+    sds <- apply(dat[,EnvNamesNoFactor, drop=TRUE], 2, sd)
+    dat[,EnvNamesNoFactor] <- scale(dat[,EnvNamesNoFactor, drop=TRUE])
     attr(dat, "envmeans") <- means
     attr(dat, "envsds") <- sds
   }
+  
   dat
 }
+
+# Get PO & PA data from disdat, and scale covariates
+# sp: specoes
+# otherSpBG: Should other species be used as background? Defaults to FALSE
+# removenames: variable names that are not environmental. 
+#    Default: c("siteid", "spid", "x", "y", "occ", "group")
+GetData <- function(sp, otherSpBG = FALSE, scale=TRUE, 
+                    removenames=c("siteid", "spid", "x", "y", "occ", "group"), ...) {
+  region <- toupper(gsub("[0-9]*", "", sp))
+  
+  # Get presence-only data
+  POdata <- GetPOdata(sp=sp, otherSpBG=otherSpBG, scale=scale)
+  EnvNames <- names(POdata)[!names(POdata)%in%removenames]
+  
+  # Get PA data and centre
+  PAdata <- GetPAdata(sp=sp, scale=FALSE)
+  PAdata$PresAbsNum <- as.numeric(as.character(PAdata$PresAbs)) # convert PA to numeric from logical
+  
+  # better to pass these into GetPAdata()?
+  if(!is.null(attr(POdata, "envmeans"))) {
+    PAdata[,names(attr(POdata, "envmeans"))] <- sweep(PAdata[,names(attr(POdata, "envmeans"))], 
+                                                      2, attr(POdata, "envmeans"), "-")
+    PAdata[,names(attr(POdata, "envsds"))] <- sweep(PAdata[,names(attr(POdata, "envsds"))], 
+                                                    2, attr(POdata, "envsds"), "/")
+  }
+  res <- list(
+    PO = POdata,
+    PA = PAdata,
+    EnvNames = EnvNames,
+    species = sp
+  )
+  res
+}
+
+
+
 
 # Simulate PA or PO data from log weights
 # lnWt: log weight (for PO) or probability (for PA)
@@ -305,7 +415,7 @@ SimDataFromWeights <- function(lnWt, PA=FALSE, N=5, sigma=NULL) {
     res <- rbinom(length(lnWt), 1, pr)
   } else {
     Wt <- pmin(1e5,exp(lnWt - mean(lnWt))) # adjust for infinite weights
-    SimPO <- sample.int(n=length(Wt), size=N, prob=Wt/sum(Wt))
+    SimPO <- sample.int(n=length(Wt), size=N, prob=Wt/sum(Wt), replace=FALSE)
     res  <- as.numeric((1:length(Wt))%in%SimPO)
   }
   res
@@ -326,37 +436,29 @@ SimFromData <- function(species, sigma=NULL, newdata=NULL, PA=TRUE,
     if(length(sigma)==1) sigma <- rep(sigma,2)
   } 
   # Get PA data to fit a model to
-  POData <- GetPOdata(sp=species, scale=FALSE)
-  N <- sum(POData$occ)
-  if(is.null(newdata) | PA) {
-    PAData <- GetPAdata(sp=species, scale=FALSE)
-  }
-  if(PA) {
-    Data <- PAData
-  } else {
-    Data <- POData
-  }
-  EnvNames <- names(Data)[!(names(Data)%in%removenames)]
-  
+  Data <- GetData(sp=species, scale=FALSE)
+  N <- sum(Data$PO$occ)
+
   # fit model with linear features to data. If PO, uses (almost) infinite weights.
   YY <- ifelse(PA, "PresAbs ~", "occ ~")
-  f <- formula(paste(YY, paste(EnvNames, collapse = " + ")))
+  f <- formula(paste(YY, paste(Data$EnvNames, collapse = " + ")))
   
   if(!PA) {
-    Wt <- 1+ (Data$occ * 99)
+    Wt <- 1+ (Data$PO$occ * 99)
+    truemod <- glm(f, data=Data$PO, family=binomial("logit"), weights=Wt)
   } else {
-    Wt <- rep(1, nrow(Data))
+    Wt <- rep(1, nrow(Data$PA))
+    truemod <- glm(f, data=Data$PA, family=binomial("logit"), weights=Wt)
   }
-  truemod <- glm(f, data=Data, family=binomial("logit"), weights=Wt)
   
   # Simulate data
-  # if no new data, simulate on orib´ginal PA and PO data
+  # if no new data, simulate on original PA and PO data
   if(is.null(newdata)) {
-    PAData$eta <- predict(truemod, newdata = PAData, type = "link")
-    POData$eta <- predict(truemod, newdata = POData, type = "link")
+    Data$PA$eta <- predict(truemod, newdata = Data$PA, type = "link")
+    Data$PO$eta <- predict(truemod, newdata = Data$PO, type = "link")
     
-    SimPODat <- replicate(nsim, SimDataFromWeights(lnWt=POData$eta, PA=FALSE, N=N, sigma=sigma[1]))
-    SimPADat <- replicate(nsim, SimDataFromWeights(lnWt=PAData$eta, PA=TRUE, sigma=sigma[2]))
+    SimPODat <- replicate(nsim, SimDataFromWeights(lnWt=Data$PO$eta, PA=FALSE, N=N, sigma=sigma[1]))
+    SimPADat <- replicate(nsim, SimDataFromWeights(lnWt=Data$PA$eta, PA=TRUE, sigma=sigma[2]))
   } else {
     newdata$eta <- predict(truemod, newdata = newdata, type = "link")
     
@@ -369,11 +471,79 @@ SimFromData <- function(species, sigma=NULL, newdata=NULL, PA=TRUE,
   
   res <- list(PA=PA, simPA=SimPADat, simPO=SimPODat)
   if(verbose) {
-    res$truemod=truemod
-    res$data=newdata
+    res$truemod <- truemod
+    res$newdata <- newdata
+    res$PA <- Data$PA
+    res$PO <- Data$PO
+    res$EnvNames <- Data$EnvNames
   }
   res
 }
+
+# Simulate data from a model
+SimDataFromModel <- function(mod, newdata, N, sigma=NULL) {
+  if(!is.null(sigma)) {
+    if(length(sigma)==1) sigma <- rep(sigma,2)
+  }
+
+  if("PA"%in%names(newdata)) {
+    eta <- predict(mod, newdata = newdata$PA, type = "link")
+    res <- list(PA = newdata$PA)
+  } else {
+    res <- list(PA = newdata)
+    eta <- predict(mod, newdata = newdata, type = "link")
+  }
+  res$PA$PresAbsNum <- SimDataFromWeights(lnWt=eta, PA=TRUE, sigma=sigma[2])
+    
+  if("PO"%in%names(newdata)) {
+    etaO <- predict(mod, newdata = newdata$PO, type = "link")
+    res$PO <- newdata$PO
+  } else {
+    res$PA <- newdata
+    etaO <- predict(mod, newdata = newdata, type = "link")
+  }
+  res$PO$occ <- SimDataFromWeights(lnWt=etaO, PA=FALSE, N=N, sigma=sigma[1])
+  
+  res
+}
+
+
+# Function to simulate new data (PA and PO) from model fitted to real data.
+# sigma: if not null, add overdispersion (i.e. extra error). Can be length 1 or 2. 
+#   If length 2, first element is PO, second is PA
+SimStatsFromData <- function(species, sigma=NULL, newdata=NULL, PA=TRUE, ...) {
+  region <- toupper(gsub("[0-9]*", "", species))
+  
+  require(maxnet)
+  if(!is.null(sigma)) {
+    if(length(sigma)==1) sigma <- rep(sigma,2)
+  } 
+  # Get PA data to fit a model to
+  Data <- GetData(sp=species, scale=FALSE)
+  N <- sum(Data$PO$occ)
+  if(is.null(newdata)) newdata <- Data
+  
+  # fit model with linear features to data. If PO, uses (almost) infinite weights.
+  YY <- ifelse(PA, "PresAbs ~", "occ ~")
+  f <- formula(paste(YY, paste(Data$EnvNames, collapse = " + ")))
+  
+  if(!PA) {
+    Wt <- 1+ (Data$PO$occ * 99)
+    truemod <- glm(f, data=Data$PO, family=binomial("logit"), weights=Wt)
+  } else {
+    Wt <- rep(1, nrow(Data$PA))
+    truemod <- glm(f, data=Data$PA, family=binomial("logit"), weights=Wt)
+  }
+  
+  # Simulate data
+  # if no new data, simulate on original PA and PO data
+  res <- SimDataFromModel(mod=truemod, newdata=newdata, N=N, sigma=sigma)
+  res$EnvNames <- Data$EnvNames
+  res$species <- species
+  
+  res
+}
+
 
 
 
@@ -391,9 +561,9 @@ SimCorrReg <- function(species, nsim=5, stats="corr",
   
   # Get PA data to fit a model to
   
-  PADat <- GetPAdata(species, scale = FALSE)
-  PODat <- GetPOdata(species, scale = TRUE)
-  EnvNames <- names(PODat)[!names(PODat)%in%removenames]
+  Data <- GetData(species, scale = FALSE)
+  # PODat <- GetPOdata(species, scale = TRUE)
+  # EnvNames <- names(PODat)[!names(PODat)%in%removenames]
   Sim <- SimFromData(species, sigma=sigma, newdata=NULL, nsim=nsim)
   
   Corr <- sapply(1:nsim, GetCorrCoef, PAd=PADat, POd=PODat, sims=Sim, envnames=EnvNames)
@@ -466,8 +636,8 @@ FitMaxEnt <- function(dat, EnvNames, RespName="occ", PA=FALSE, classes="l") {
                        str=classes)
   
   for(cl in TryClasses) {
-    mod <- tryCatch(maxnet(p=dat[,RespName], data=dat[,EnvNames], wt=wt, 
-                           f=maxnet.formula(p=dat[,RespName], data=dat[,EnvNames],
+    mod <- tryCatch(maxnet(p=dat[,RespName, drop=TRUE], data=dat[,EnvNames, drop=TRUE], wt=wt, 
+                           f=maxnet.formula(p=dat[,RespName, drop=TRUE], data=dat[,EnvNames, drop=TRUE],
                                             classes=cl)), 
                     error = function(msg){ return(NULL) })
     if(is.null(mod)) { 
@@ -560,3 +730,285 @@ SimCorrReg <- function(species, nsim=5, stats="corr",
   res
 }
 
+
+# Calculate CV statistics for a species, using spatial cross-validation
+#  sp: species
+#  k: number of folds. Default to 5
+#  size: Size of blocks. Default: 5e4
+# classes: classes of models "lqpth"
+# Sizes: Vector of default sizes
+
+CalcCVStatistic <- function(sp, POdat = NULL, k=5, size=5e4, classes="lqpth", Sizes=NULL, spatial=FALSE, 
+                            removenames = c("siteid", "spid", "x", "y", "occ", "group", "geometry")) {
+  require(blockCV)
+  
+  if(!is.null(Sizes)) {
+    region <- toupper(gsub("[0-9]*", "", sp))
+    size <- Sizes[region]
+  }
+  if(is.null(data))  POdat <- GetPOdata(sp=sp, scale=TRUE, sf=TRUE)
+  
+  if(spatial) {
+    dat.CV <- cv_spatial(x = POdat,column = "occ", 
+                         k = k, # number of folds
+                         size = size, # size of the blocks in metres
+                         selection = "random", iteration = 50, biomod2 = FALSE,
+                         progress = FALSE, report = FALSE,plot = FALSE)
+    
+  } else {
+    # dat.CV$folds_list
+    dat.CV <- list(folds_list = MakeCV(x = POdat, k = k))
+  }
+  
+  stats <- lapply(dat.CV$folds_list, function(block, alldat, removenames) {
+#    block <- dat.CV$folds_list[[1]]; alldat <- POdat
+    traindat <- alldat[block[[1]],, drop=TRUE]
+    testdat <- alldat[block[[2]],, drop=TRUE]
+    EnvNames <- names(traindat)[!names(traindat)%in%removenames]
+    #  Fit MaxEnt model
+    MaxNet.mod <- FitMaxEnt(dat=traindat, EnvNames=EnvNames, RespName="occ", 
+                            PA=FALSE, classes=classes)
+    if(is.null(MaxNet.mod)) {
+      Valid <- c(Sensitivity=NA, Specificity=NA, TSS=NA, AUC=NA)
+    } else {
+      testdat$test.pred <- predict(MaxNet.mod, testdat, type="link")
+      Valid <- CalcFitStats(pres=testdat$occ, pred=testdat$test.pred, thresh=NULL)
+    }
+    Valid
+  }, alldat=POdat, removenames=removenames)
+  
+#  stats
+  Mean <- c(
+    AUC = mean(unlist(lapply(stats, function(x) x["AUC"]))),
+    TSS = mean(unlist(lapply(stats, function(x) x["TSS"])))
+  )
+  Mean
+}
+
+
+
+# non.spatial CV
+# might have to balance numers of rpesences & absences too
+MakeCV <- function(x = POdat, k = k) {#column = "occ", 
+  Folds <- rep(1:k, times=floor(nrow(x)/k))
+  if(nrow(x)%%5 != 0 ) Folds <- c(Folds, 1:(nrow(x)%%5))
+  Fold.rand <- sample(Folds, replace = FALSE)
+  foldsl <- lapply(1:k, function(f, rand) {
+    res <- list(which(rand!=f), which(rand==f))
+  }, rand=Fold.rand)
+  foldsl
+}
+
+
+FitModels <- function(Data, classes, verbose=FALSE, link="logit", 
+                      #                          removenames=c("siteid", "spid", "x", "y", "occ", "group"), otherSpBG = FALSE, 
+                      valid=FALSE, pred=FALSE, prob = FALSE, 
+                      savemodels = FALSE, ...) {
+  if(!"PO"%in%names(Data)) stop("Data should have PO")
+  if(!"PA"%in%names(Data)) stop("Data should have PA")
+  if(!"EnvNames"%in%names(Data)) stop("Data should have EnvNames")
+  
+  require(glmnet)
+  if(verbose) message("Starting ", Data$species, " now")
+  
+  #  Fit MaxEnt model
+  MaxNet.mod <- FitMaxEnt(dat=Data$PO, EnvNames=Data$EnvNames, RespName="occ", 
+                          PA=FALSE, classes=classes)
+  
+  if(verbose) message("Maxent for ", Data$species, " done")
+  
+  # Validate on PA data
+  if(is.null(MaxNet.mod)) {
+    PAmod <- NULL
+    res <- NULL
+  } else {
+    Data$PA$MxPred <-  predict(MaxNet.mod, Data$PA, type="link")
+    Data$PA$MxPred <-  Data$PA$MxPred - mean(Data$PA$MxPred)
+    validmod <- glm(PresAbs~MxPred, data=Data$PA, family=binomial(link))
+    
+    # Fit MaxEnt model to PA data as PA
+    PAmod <- FitMaxEnt(dat=Data$PA, EnvNames=Data$EnvNames, RespName="PresAbsNum", 
+                       PA=TRUE, classes=classes)
+    res <- list(coefficients = coef(validmod),
+                alpha = MaxNet.mod$alpha, 
+                confint = confint(validmod))
+    
+  }
+  
+  if(verbose) message("Validation for ", Data$species, " done")
+  # Combine predictions  
+  if(pred | valid) {
+    if(!is.null(PAmod)) {
+      Predicted <- data.frame(maxnet = Data$PA$MxPred,
+                              valid = predict(validmod, newdata=Data$PA, type = "link"),
+                              PA = predict(PAmod, newdata=Data$PA[,Data$EnvNames], type = "link")
+                              
+      )  
+      Predicted <- apply(Predicted, 2, scale, scale=FALSE) # Mean centre
+      if(valid) {
+        Valid <- apply(Predicted, 2, function(pred, pres)  {
+          CalcFitStats(pres=pres, pred=pred, thresh=NULL)
+        }, pres=Data$PA$PresAbsNum)
+      }
+      
+    } else {
+      Predicted <- NULL
+      Valid <- NA
+    }
+    
+    # Return probabilities
+    if(prob) {
+      if(!is.null(PAmod)) {
+        Predicted.prob <- data.frame(maxnet = predict(MaxNet.mod, Data$PA, type="logistic"),
+                                     valid = predict(validmod, newdata=Data$PA, type = "response"),
+                                     PA = predict(PAmod, newdata=Data$PA[,Data$EnvNames], type = "logistic")
+        )
+      } else {
+        Predicted.prob <- NULL
+      }
+      
+    }
+  }
+  # Calculate validation Statistics
+  
+  if(pred) {
+    res$pred <- Predicted
+    if(prob) res$pred.prob <- Predicted.prob
+  }
+  if(valid) res$valid <- Valid
+  if(savemodels) {
+    res$MaxEnt <- MaxNet.mod
+    res$valid <- validmod
+    res$PAMaxEnt <- PAmod
+  }
+  res
+}
+
+
+# Get GoF statistics, either from data or simulate data for a species
+GetStatistics <- function(sp, classes="l", verbose=FALSE, sim=FALSE, outfile=NULL,
+                          size = 5e4, future.seed=TRUE, link="logit", ...) {
+  if(sim) {
+    Data <- SimStatsFromData(sp, classes=classes, ...)
+  } else {
+    Data <- GetData(sp, classes=classes, ...)
+  }
+  if(verbose) cat("Got ", sp , " data\n")
+  
+  FM <- FitModels(Data, classes="l", verbose=FALSE, valid=TRUE, pred = TRUE, 
+                  onlySumm = TRUE,
+                  future.seed=TRUE, link="logit")  
+  if(verbose) cat("Fitted ", sp , " model\n")
+
+  if(!is.null(FM)) {
+    # Cross validation
+    CV <- CalcCVStatistic(sp, POdat = Data$PO, k=5, size=size, classes=classes, Sizes=NULL, spatial=FALSE)
+    if(verbose) cat("Done ", sp , " CV\n")
+    
+    res <- c(
+      corMxPA =ifelse(is.null(FM$pred)|all(is.na(FM$pred)),
+                             NA, cor(FM$pred[,"maxnet"], FM$pred[,"PA"])),
+             AUC = ifelse(is.null(FM$valid)| all(is.na(FM$valid)), 
+                          NA, FM$valid["AUC", "maxnet"]),
+             TSS = ifelse(is.null(FM$valid)| all(is.na(FM$valid)), 
+                          NA, FM$valid["TSS", "maxnet"]),
+             beta = FM$coefficients["MxPred"], 
+             AUC.CV=CV["AUC"], 
+             TSS.CV=CV["TSS"])
+  } else {
+    res <- rep(NA, 6)
+  }
+  names(res) <- c("corMxPA", "AUC", "TSS", "beta", "AUC.CV", "TSS.CV")
+  if(!is.null(outfile)) cat(sp, res, file=outfile, sep=",", 
+                            append = TRUE, fill=TRUE)
+  res
+}
+
+
+# Get Gof stats from simulated data
+RunSimulatedStats <- function(region, nsims=5, sizes = 5e4, classes="l", 
+                              POthreshold = 20, ...) {
+  size <- ifelse(length(sizes)>1 & region%in%names(sizes), sizes[region], sizes[1]) 
+  
+  Spp <- table(disPo(region)$spid)
+  SpNames <- names(Spp)[Spp>=POthreshold]
+  
+  SpeciesToRun <- rep(SpNames, each=nsims)
+  SimStats <- future_sapply(SpeciesToRun, GetStatistics, classes=classes, verbose=FALSE, sim=TRUE, sigma=NULL,
+                            size=size, link="logit", onlySumm = TRUE, ...)
+  # SimStats <- sapply(SpeciesToRun, GetStatistics, classes=classes, verbose=FALSE, sim=TRUE, sigma=NULL,
+  #                    size=size, link="logit", onlySumm = TRUE, ...)
+   # SimStats <- sapply(SpeciesToRun, GetStatistics, classes=classes, verbose=FALSE, sim=TRUE, sigma=NULL,
+   #                    size=size, link="logit", onlySumm = TRUE)
+  SimStats.df <- as.data.frame(t(SimStats))
+  SimStats.df$species <- colnames(SimStats)
+#  if(!is.null(outfile)) save(SimStats.df, file=paste0("SimStats", region, ".RData"))
+  save(SimStats.df, file=paste0("Results/SimStats", region, ".RData"))
+  SimStats.df
+  
+}
+
+
+
+
+
+# GoF statistics
+ExtractGof <- function(lst.sp, model="maxnet") {
+  c(beta = as.numeric(lst.sp$coefficients["MxPred"]), AUC = lst.sp$valid["AUC", model],
+    TSS = lst.sp$valid["TSS", model])
+}
+
+
+PlotGoF <- function(nm, lst, statx, staty, ...) {
+  df <- lst[[nm]]
+  plot(df[,statx], df[,staty], type="n", xlab="", ylab="", main=nm,...) 
+  if(staty=="beta") rect(-100, 0, 100, 1, col="pink", border=NA)
+  if(statx=="AUC") abline(v=0.7, lty=2)
+  if(statx=="TSS") abline(v=0.0, lty=2)
+  
+  points(df[,statx], df[,staty]) 
+}
+
+PlotAUC <- function(nm, lst, AtRho=c(0,0), AUC=FALSE, ...) {
+  Cor <- round(cor(lst[[nm]][,"int"], lst[[nm]][,"ext"], use="pairwise.complete.obs"), 2)
+  plot(lst[[nm]][,"int"], lst[[nm]][,"ext"], type="n", xlab="", ylab="", main=nm, ...) 
+  if(AUC) {
+    rect(-1, -1, 0.5, 2, col=rgb(1,0,0,alpha=0.5), border=NA) 
+    rect(-1, -1, 2, 0.5, col=rgb(1,0,0,alpha=0.5), border=NA) 
+  }
+  text(AtRho[1], AtRho[2], bquote(rho == .(Cor)))
+  abline(0,1, lty=3)
+  points(lst[[nm]][,"int"], lst[[nm]][,"ext"]) 
+}
+
+# Predictions & Correlations
+
+GetPreds <- function(results) {
+  preds <- lapply(results, function(lst) {
+    cbind(lst$pred[,"PA"], lst$pred[,"valid"])
+  })
+}
+CalcCorrs <- function(lst) {
+  unlist(lapply(lst, function(x) cor(x)[1,2]))
+}
+PlotCorrs <- function(corrs) {
+  plot(corrs$cor, jitter(as.numeric(corrs$region)), yaxt="n", xlim=c(-1,1),
+       xlab="Correlation", ylab="")
+  axis(2, at=1:6, labels = levels(corrs$region), las=1)
+  abline(v=0, lty=3)
+}
+
+
+
+# Get numbers of presences in PO & PA
+GetNPres <- function(sp, ...) {
+  PA <- GetPAdata(sp, ...)
+  nPresPA <- sum(PA$PresAbs==1)
+  nPA <- nrow(PA)
+  
+  PO <- GetPOdata(sp, ...)
+  nPresPO <- sum(PO$occ==1)
+  nPO <- nrow(PO)
+  
+  c(nPA=nPresPA, totPA=nPA, nPO=nPresPO, totPO=nPO)
+}

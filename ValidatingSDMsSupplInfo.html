@@ -106,50 +106,121 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="quarto" class="level2">
-<h2 class="anchored" data-anchor-id="quarto">Quarto</h2>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(maxnet)</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(disdat)</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(future.apply)</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span>opts_chunk<span class="sc">$</span><span class="fu">set</span>(<span class="at">dpi =</span> <span class="dv">48</span>)</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"MaxEntBayesFunctions.R"</span>)</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">"AllBigObjects.RData"</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">source</span>(<span class="st">"ValidatingSDMsFunctions.R"</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">"Results/AllCoefs.RData"</span>)</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a> </span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>Regions <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"AWT"</span>, <span class="st">"CAN"</span>, <span class="st">"NSW"</span>, <span class="st">"NZ"</span>, <span class="st">"SA"</span>, <span class="st">"SWI"</span>)</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>RemoveNames <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"siteid"</span>, <span class="st">"spid"</span>, <span class="st">"x"</span>, <span class="st">"y"</span>, <span class="st">"occ"</span>, <span class="st">"group"</span>)</span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="fu">plan</span>(multisession, <span class="at">workers =</span> <span class="dv">6</span>) <span class="do">## Run in parallel on local computer, with 6 nodes (cores?)</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-</section>
-<section id="models-with-linear-features" class="level1">
-<h1>Models with linear features</h1>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>AllCoefs.l <span class="ot">&lt;-</span> <span class="fu">sapply</span>(Regions, JustMaxEnt, </span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                   <span class="at">remove=</span>RemoveNames, <span class="at">classes=</span><span class="st">"l"</span>, <span class="at">valid =</span> <span class="cn">TRUE</span>, <span class="at">pred=</span><span class="cn">TRUE</span>)</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>AllCoefs.l.sp <span class="ot">&lt;-</span> <span class="fu">sapply</span>(Regions, JustMaxEnt, </span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>                   <span class="at">remove=</span>RemoveNames, <span class="at">classes=</span><span class="st">"l"</span>, <span class="at">valid =</span> <span class="cn">TRUE</span>, <span class="at">otherSpBG=</span><span class="cn">TRUE</span>, <span class="at">pred=</span><span class="cn">TRUE</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</div>
 <section id="supplementary-figures" class="level2">
 <h2 class="anchored" data-anchor-id="supplementary-figures">Supplementary Figures</h2>
-<p>Plot of models with linear features</p>
+<p>The intercepts from the two models are plotted in <a href="#fig-Intercepts" class="quarto-xref">Figure&nbsp;1</a>. Overall, any correlations are weak.</p>
 <div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>GetInts <span class="ot">&lt;-</span> <span class="cf">function</span>(region, dat) {</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  res <span class="ot">&lt;-</span> <span class="fu">lapply</span>(dat[[region]], <span class="cf">function</span>(lst) {</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    df <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="at">PO=</span>lst<span class="sc">$</span>alpha, <span class="at">PA=</span><span class="fu">c</span>(lst<span class="sc">$</span>coefficients[<span class="st">"(Intercept)"</span>]))</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    df</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  })</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  res <span class="ot">&lt;-</span> <span class="fu">t</span>(<span class="fu">list2DF</span>(res))</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">colnames</span>(res) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"PO"</span>, <span class="st">"PA"</span>)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  res</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>Intercepts <span class="ot">&lt;-</span> <span class="fu">sapply</span>(Regions, GetInts, <span class="at">dat=</span>AllCoefs.lqpth)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>Intercepts.sp <span class="ot">&lt;-</span> <span class="fu">sapply</span>(Regions, GetInts, <span class="at">dat=</span>AllCoefs.lqpth.sp)</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co"># unlist(lapply(Intercepts, function(x) cor(x)[1,2]))</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="co"># unlist(lapply(Intercepts.sp, function(x) cor(x)[1,2]))</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="fu">par</span>(<span class="at">mfrow=</span><span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">3</span>), <span class="at">mar=</span><span class="fu">c</span>(<span class="dv">3</span>,<span class="dv">2</span>,<span class="dv">4</span>,<span class="dv">1</span>), <span class="at">oma=</span><span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">2</span>,<span class="dv">0</span>,<span class="dv">0</span>))</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="fu">sapply</span>(<span class="fu">names</span>(Intercepts), <span class="cf">function</span>(nm, lst) {</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">plot</span>(lst[[nm]][,<span class="st">"PO"</span>], lst[[nm]][,<span class="st">"PA"</span>], <span class="at">type=</span><span class="st">"n"</span>, <span class="at">xlab=</span><span class="st">""</span>, <span class="at">ylab=</span><span class="st">""</span>, <span class="at">main=</span>nm) </span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="co"># rect(-100, -100, 100, 0.7, col="mistyrose", border=NA)</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="co"># rect(-100, -100, 0.7, 100, col="mistyrose", border=NA)</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>  <span class="co"># rect(-100, -100, 0.7, 0.7, col="pink", border=NA)</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  <span class="co"># rect(-100, -100, 100, 0, col="red", border=NA)</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>  <span class="co"># rect(-100, -100, 0.5, 100, col="red", border=NA)</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">points</span>(lst[[nm]][,<span class="st">"PO"</span>], lst[[nm]][,<span class="st">"PA"</span>])</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">box</span>()</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>}, <span class="at">lst=</span>Intercepts)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>$AWT
+NULL
+
+$CAN
+NULL
+
+$NSW
+NULL
+
+$NZ
+NULL
+
+$SA
+NULL
+
+$SWI
+NULL</code></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mtext</span>(<span class="st">"Presence Only Data"</span>, <span class="dv">1</span>, <span class="at">outer=</span><span class="cn">TRUE</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mtext</span>(<span class="st">"Presence Absence Data"</span>, <span class="dv">2</span>, <span class="at">outer=</span><span class="cn">TRUE</span>, <span class="at">line=</span><span class="fl">0.5</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output-display">
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><img src="ValidatingSDMsSupplInfo_files/figure-html/unnamed-chunk-1-1.png" class="img-fluid figure-img" width="336"></p>
-<figcaption>Estimated intercept and slope for calibration of predictions to presence absence data, from Maxent model with linear features.</figcaption>
+<div id="fig-Intercepts" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-Intercepts-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ValidatingSDMsSupplInfo_files/figure-html/fig-Intercepts-1.png" class="img-fluid figure-img" width="336">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-Intercepts-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: Estimated intercepts for MaxEnt models with all features fitted to presence-only and presence absence data.
+</figcaption>
 </figure>
 </div>
 </div>
 </div>
-<p>Plot of models with linear features, using presences of other species as background points</p>
+<div class="cell">
+<div class="cell-output-display">
+<div id="fig-GoF" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-GoF-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ValidatingSDMsSupplInfo_files/figure-html/fig-GoF-1.png" class="img-fluid figure-img" width="336">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-GoF-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Estimated AUC and TSS for calibration of predictions to presence absence data, from Maxent model with all features. Red: values below 0 (TSS) or 0.5 (AUC). Pink: values below 0.4 (TSS) or 0.7 (AUC)
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>The traditional goodness of fit statistics are plotted in <a href="#fig-GoF" class="quarto-xref">Figure&nbsp;2</a>. There are weak to moderate correlations between them. Over all species, 4% of species (i.e.&nbsp;9 species) had an AUC below 0.5.</p>
 <div class="cell">
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="ValidatingSDMsSupplInfo_files/figure-html/unnamed-chunk-2-1.png" class="img-fluid figure-img" width="336"></p>
-<figcaption>Estimated intercept and slope for calibration of predictions to presence absence data, from Maxent model with linear features and observations of non-target species as pseudo-absences.</figcaption>
+<p><img src="ValidatingSDMsSupplInfo_files/figure-html/IntCVTSS-1.png" class="img-fluid figure-img" width="336"></p>
+<figcaption>TSS from internal and external validation</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Correlations with bias correction</p>
+<div class="cell">
+<div class="cell-output-display">
+<div id="fig-Corrslqpt.sp" class="quarto-float quarto-figure quarto-figure-center anchored" width="336">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-Corrslqpt.sp-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="ValidatingSDMsSupplInfo_files/figure-html/fig-Corrslqpt.sp-1.png" id="fig-Corrslqpt.sp" class="img-fluid figure-img" width="336">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig quarto-uncaptioned" id="fig-Corrslqpt.sp-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3
+</figcaption>
 </figure>
 </div>
 </div>
@@ -241,7 +312,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-</section>
 </section>
 </section>
 

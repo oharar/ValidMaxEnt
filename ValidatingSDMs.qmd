@@ -15,12 +15,16 @@ execute:
 library(maxnet)
 library(disdat)
 library(future.apply)
+library(blockCV)
+library(sf)
+
 # knitr::opts_chunk$set(dpi = 48)
 source("ValidatingSDMsFunctions.R")
 
-UpdateEverything <- TRUE
+UpdateEverything <- FALSE # Crap conditional cache invalidation
 Regions <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
-RemoveNames <- c("siteid", "spid", "x", "y", "occ", "group",  "PresAbs")
+RemoveNames <- c("siteid", "spid", "x", "y", "occ", "group",  "PresAbs", "geometry")
+Sizes <- c(AWT=5e4, CAN=1e5, NSW=1e5, NZ=1e5, SA=5e5, SWI=5e4)
 
 plan(multisession, workers = 6) ## Run in parallel on local computer, with 6 nodes (cores?)
 
@@ -37,11 +41,21 @@ plan(multisession, workers = 6) ## Run in parallel on local computer, with 6 nod
 
 @SmithLevineTau showed that @YackulicMEE were right: you shouldn't think at all species are equal. But...
 
+Standards paper shows almost no improvement, not clear there has been any since.
+
 The same data was used by @ValaviUsingDisDat to compare the perform,ance of different models. Here our focus is on the comparisons can and should be made, and what the results tell us.
 
 ## Theory
 
 Most data is modelled as presence-only, so we will follow that here but indicate the adjustments needed if the data are of a different type. For presence-only data the underlying theory can be derived from point processes (e.g. @FithianHastie, @RennerWarton, @wartonShepherd2010, @AartsetalMEE2012). The actual distribution is viewed as an intensity surface, with a higher intensity where a species is more likely to be present. The data is made up of locations of observations of the species of interest, along with locations in the same region where the species was not observed. These latter points are usually called "pseudo-absences" in the SDM world. In a point process approach they are seen as integration points - to calculate the likelihood for the presences we should integrate the intensity over the full space. 
+
+Mathematically, we can say that the intensity surface is $\lambda(\mathbf{s})$, where $\mathbf{s}$ is the location. We assumed that it is affected by the environment in a way that can be written additively:
+
+$$
+\log{\lambda(\mathbf{s}) = \alpha + \sum_i \beta_i X_i(\mathbf{s})} = \alpha + \eta(\mathbf{s})
+$$
+
+The idea is that even if the effect of a covariate is not additive, we can transform the covariate to be several **features**, $X_i(\mathbf{s})$. MaxEnt and GAMs, for example, use different features to create flexible non-linear transformations.
 
 Of concern here is the model for the intensity surface. It is assumed that it is affected by several environmental covariates in an additive way. Specifically, of $\lambda(\mathbf{s})$ is the intensity at point $\mathbf{s}$, the assumption is that $\log{\lambda(\mathbf{s}) = \alpha + \sum_i \beta_i X_i(\mathbf{s})} = \alpha + \eta(\mathbf{s})$ where $X_i(\mathbf{s})$ is a _feature_, i.e. a function of the environmental covariates. For simplicity we can think of this as an environmental covariate, but it could also be a non-linear term, such as a quadratic or the product of two environmental covariates (i.e. an interaction). This same approach is used in GLMs, MaxEnt, GAMs and many other methods. The $\beta_i$s are standard regression coefficients, and $\alpha$ is an intercept. This is not normally of interest for presence-only  data, as it is determined by the amount of data, i.e. the sampling effort. Thus the focus is on $\eta(\mathbf{s})$.
 
@@ -51,32 +65,102 @@ The purpose of laying this out is to suggest an approach to model validation. If
 
 Although we are not primarily interested in the intercept, except to note that it should not equal 0 (as pointed out by both @YackulicMEE and @SmithLevineTau), we might expect that if we look at the estimates for the fitting and validation models across species from the same data sets, they should be correlated. i.e. a species that is more common in the presence only data set may also be more common in the presence-absence data, because it may be more common or be easier to spot.
 
-Why, though, might a regression coefficient not equal 1? Aside from random chance, it may be because the model is wrong. Indeed, as all models are wrong this is likely. But it may also be because, even if the fitted model is correct, it is fitted to finite data, so there is uncertainty in the parameter estimates. This uncertainty will feed through to validation model, where $\eta(\mathbf{s})$ has been estimates with error. The overall effect of this is not just to increase uncertainty, but to bias the estimate of the slope towards zero (@CarrollErrorsinVariables). This could be mitigated by incorporating this uncertainty into the second model (REF).
+## Effects of Uncertainty 
 
+Assume we have a binary response, $Y_i$, with $g(P(Y_i=1)) = \eta_i = \alpha_d + \gamma_i$. $g()$ is a link function, such as a logit or cloglog link. We will assume $\text{E}(\gamma_i)=0$, so that $\alpha_d$ is the mean prevalence in the data set $d$. The environmental effects are modelled through $\gamma_i$ (typically as $\gamma_i = \sum_j \beta_j x_{ij}$ where $x_{ij}$ is feature $j$ for location $i$).
+
+A useful way of conceptualising this model is as a threshold model. We assume that we have a latent variable, $\lambda_i$. If $\lambda_i <0$ we have $Y_i=1$. So a higher mean for $\lambda_i$ would mean a greater probability of presence.
+
+We can link this to our model by writing $\lambda_i = \alpha_d + \gamma_i + \epsilon_i$, so $\alpha$ is the overall mean, $\gamma_i$ is the systematic deviation from that mean (i.e. the relative suitability), and $\epsilon_i$ is the random component, due to stochasticity, or unmeasured effects such as biotic interactions. Now, saying that $Y_i=1$ if $\lambda_i<0$ is the same as saying that $Y_i=1$ if $\epsilon_i < \eta_i$. Mathematically, $P(\epsilon_i < \eta_i)$ is the cumulative density function of $\epsilon_i$ calculated at $\eta_i$, so that $g()$ - the link function - is just the cumulative density function assuming some distribution. 
+
+The "usual" link functions for binary data are the logit, probit and cloglog, which correspond to the logistic, normal and Gumbel distribution respectively (REF). It is important here to fix the variance of $\epsilon_i$. If instead it has a standard deviation $\sigma$, then $\epsilon_i < \eta_i$ is the same as $\epsilon_i/\sigma < \eta_i/\sigma = \sum_j \beta_j x_{ij}/\sigma$. In other words, the effect of changing the variance of $\epsilon$ is the same as changing the strengths of the environmental effects.
+
+If the point process model underlying MaxEnt is correct, then the model for presence absence data is a generalised linear model with a cloglog link function (REF). However, a maximum entropy approach suggests a logit link (REF) as an alternative. Whichever link function is chosen, the model is the same as above, but with a different intercept, $\alpha_d$. The intercept is affected by both the mean prevalence of a species and the average detectability.
+
+What happens when the model is not correct? We can get some intuition by adding an extra sampling variation term, $\delta_i$:
+
+$$
+\lambda_i = \alpha_d + \gamma_i + \delta_i + \epsilon_i
+$$
+
+We will assume it is random, with some variance $\tau^2$, and uncorrelated with $\gamma_i$. If we first look at this variation in the PO data for fitting, we see that the model can be written as $\lambda_i = \alpha_d + \gamma_i + (\delta_i + \epsilon_i)$, where the term in brackets has a variance of $\tau^2 +1$, As this is (by definition) not correlated with $\gamma_i$, we can look at it as random, so it inflates the variance, and thus (as argued above), reduces the estimated regression coefficients by $\tau^2 +1$.
+
+If we then use these same coefficients to explain the PA data, then the prediction will also be reduced by $\tau^2 +1$. Thus our regression coefficient will be above 1. Conversely, if our model for the PO data is correct, but our PA data has this extra variation, the regression coefficient will be below 1. These effects are demonstrated in @fig-CoefOverOne for the Swiss species 04. As the extra variation increases, i.e. the PO data becomes worse, the slope tends to increase.
+
+
+
+```{r}
+#| label: fig-CoefOverOne
+#| echo: false
+#| warning: false
+#| fig-cap: "Estimated slopes for calibration of predictions to simulated presence absence data, from Maxent model with linear features fitted to simulated PO data with overdispresion in the linear predictor."
+
+species="swi04"
+
+sigmas <- seq(0,10, length=30)
+CoefsPO <- future_sapply(sigmas, function(sig, sp, nsim) {
+  Coefs <- SimCoefs(species=sp, sigma=c(sig, 0), nsim=nsim)
+  Coefs
+}, sp=species, nsim=1)
+CoefsPA <- future_sapply(sigmas, function(sig, sp, nsim) {
+  Coefs <- SimCoefs(species=sp, sigma=c(0,sig), nsim=nsim)
+  Coefs
+}, sp=species, nsim=1)
+
+plot(sigmas, CoefsPO, type="n", xlab="PO overdispersion", ylab="Slope", 
+     ylim=c(0, max(c(CoefsPO, CoefsPA))))
+  rect(-100, 0, 100, 1, col="aliceblue", border=NA)
+abline(lm(CoefsPO ~ sigmas), col="darkgreen")
+abline(lm(CoefsPA ~ sigmas), col="red")
+points(sigmas, CoefsPO, col="darkgreen")
+points(sigmas, CoefsPA, col="red")
+legend(0, 2.3, c("Variance in PO", "Variance in PA"), lty=1, col=c(1,2))
+box()
+
+```
+
+
+
+Reality will not be this clean, of course. $\gamma_i$ and $\delta_i$ will be correlated, which will bias the estimation of $\gamma_i$, i.e. the niche. And of course, there will be observation uncertainty in both the PA and PO data. In addition, even if the model is correct, there will be estimation uncertainty, which will act like $\delta_i$, and will attenuate the coefficients towards zero (@CarrollErrorsinVariables).
+
+Overqll, if we expect the MaxEnt model is correct, the regression coefficient should,be below 1. If it is wrong, the coefficient could be greater or smaller than 1. A negative coefficient would indicate a spectatularly bad model.
 
 ## Methods
 
 ### Data
 
-The 
 
-From @disdat. For New Zealand we merged classes 2 (high) and 3 (not documented) of toxicats, and for NSW we merged level 8 of vegsys (pine plantation) with Dry Open Forest. In both cases, these are rare classes that are not in every data set.
+Six data sets from the `disdat` `R` package were used (@disdat). Each data set contains a presence-only data set, along with randomly chosen background points, and a presence/absence data set. Each of these has data on xx - yy species. As well as the species observations, the data consist of xx - yy environmental covariates, chosen to be relevant for the species groups. Most were continuous, and were standardised to have mean zero and variance 1. For the presence absence data the covariates were standardised using the means and variance of the PO data.
+
+These are:
+
+- AWT: 
+- CAN:
+- NSW: 
+- NZ: 
+- SA: 
+- SWI: 
+
+For New Zealand we merged classes 2 (high) and 3 (not documented) of toxicats, and for NSW we merged level 8 of vegsys (pine plantation) with Dry Open Forest. In both cases, these are rare classes that are not in every data set. We only used species with at least 20 PO data points.
 
 ### Modelling
 
+For each data set we followed the same analysis path. First, a MaxEnt model was fitted to the presence-only data. This used all of the features as a default, but if this model did not converge, a model without hinges was used [CHECK THAT NONE OF THE MODELS WERE REDUCED FURTHER]. For background points, two strategies were used: using the background points given in the data, and using the presences of other species as background points (REF). Only the BEST is presented in the main text: analyses with THE OTHER are reported in the supplementary material. As well as fitting these models, we used five-fold internal cross-validation and calculated AUC and a False Skills Statistic. Cross validation folds were chosen at random or using spatial cross-validation (REF): only the BEST is shown in the main text, with THE OTHER reported in the supplemntary information. The MaxEnt model was used to predict propensity on the presence/absence data. 
 
-- fit MaxEnt to PO data
-- predict on PA data
-- fit prediction to PA data
-- fit "MaxEnt" to PA data (i.e. change weights to be 1)
+Two (?) models were fitted to the presence-absence data: one model using the propensity from the PO model as a covariate, and a second fitting the MaxEnt model (i.e. the same regularisation and features). This was carried out by changing the weights for the absences from 100 to 1, and keeping the rest of the model the same. Both the cloglog and logit link were tried: only THE BEST is presented here.
 
-If good fit, should get beta=1, and correlation between predictions should be high.
+The fit of the presence-only model to the presence-absence data was examined in two ways. First, the regression coefficient from the propensity model was examined: it should be close to 1. Second, the correlations of the predictions from the PO and PA data were compared. Even with a correct model these will be below the ideal of 1, because of sampling error in both data sets. 
 
-Compare AUC & TSS with beta
-
-Compare to simulations, where model is true. 
+Simulations were used to explore the outcomes when there is no model misfit. For each species a logistic regression model with linear features was fitted to the presence-absence data. This model was then used to simulate presence only and presence-absence data. The presence only data were sampled without replacement from the background points from the data, with a probability proportional to the exponent of the propensity. The same number of points as in the original data were sampled. For the presence absence data the same model was used, including the same intercept. These data were then analysed with the same models as above [CHECK].
 
 
+Refactoring
+
+- get data (sim or real)
+- fit MaxEnt to PA
+  - fit MaxEnt to PO 
+  - predict & fit to PO
+    - calc. beta & correlation
 
 ```{r}
 #| label: CreateFits
@@ -97,6 +181,7 @@ if(!file.exists("Results/AllCoefs.RData") | UpdateEverything) {
 }
 ```
 
+
 ```{r}
 #| label: CreateSims
 #| echo: false
@@ -104,32 +189,105 @@ if(!file.exists("Results/AllCoefs.RData") | UpdateEverything) {
 #| message: false
 #| eval: true
 
-if(!file.exists("Results/Correlations.RData") | UpdateEverything) {
-  
-  #  Simulations, correlations of models fitted to PO and PA data
-  Correlations <- lapply(Regions, function(reg, nsim=2) {
-    bgEnv <- disBg(reg)
-    SpNames <- unique(disPo(reg)$spid)
+ # This does one simulation. Should replicate() and only extract relevant information
+  # AllCoefs.Sim.lqpth <- sapply(Regions, JustSimMaxEnt, verbose=FALSE,
+  #                          remove=RemoveNames, classes="lqpth", valid = TRUE, pred=TRUE)
 
-    Corrs <- future_sapply(SpNames, SimCorrReg,
-                           stats="corr", nsim=nsim,
-                           future.seed=TRUE)
-    Corrs
-  })
-    #  message(reg, " done")
-  
-  save(Correlations, file="Results/Correlations.RData")  
+if(!file.exists("Results/SimulationsGoF.txt") | UpdateEverything) {
+# This takes about a day with 6 cores running.
+cat("Species", "corMxPA", "AUC", "TSS", "beta", "AUC.CV", "TSS.CV\n", sep=",",
+        file="Results/SimulationsGoF.lqpth.RData")
+
+  Regions <- c("SA", "SWI", "AWT", "CAN", "NZ", "NSW")
+ SimGoF <- lapply(Regions, RunSimulatedStats, nsims=50, future.seed=TRUE,
+                  sizes = Sizes, classes="lqpth",
+                  outfile="Results/SimulationsGoF.txt")
+ names(SimGoF) <- Regions
+   save(SimGoF, file="Results/SimulationsGoF.lqpth.RData")
+
+ # SimGoF.AWT <- RunSimulatedStats("AWT", nsims=50, future.seed=TRUE, # classes="lqpth", 
+ #                  sizes = Sizes, outfile="Results/SimulationsGoF.txt")
+ # SimGoF.CAN <- RunSimulatedStats("CAN", nsims=50, future.seed=TRUE, # classes="lqpth", 
+ #                  sizes = Sizes, outfile="Results/SimulationsGoF.txt")
+ # SimGoF.NSW <- RunSimulatedStats("NSW", nsims=50, future.seed=TRUE, # classes="lqpth", 
+ #                  sizes = Sizes, outfile="Results/SimulationsGoF.txt")
+ # SimGoF.NZ <- RunSimulatedStats("NZ", nsims=50, future.seed=TRUE, # classes="lqpth", 
+ #                  sizes = Sizes, outfile="Results/SimulationsGoF.txt")
+ # SimGoF.SA <- RunSimulatedStats("SA", nsims=50, future.seed=TRUE, # classes="lqpth", 
+ #                  sizes = Sizes, outfile="Results/SimulationsGoF.txt")
+ # SimGoF.SWI <- RunSimulatedStats("SWI", nsims=50, future.seed=TRUE, # classes="lqpth", 
+ #                  sizes = Sizes, outfile="Results/SimulationsGoF.txt")
+ # SimGoF <- list(SimGoF.AWT, SimGoF.CAN, SimGoF.NSW, SimGoF.NZ, SimGoF.SA, SimGoF.SWI)
+ # names(SimGoF) <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
+#  save(SimGoF, file="Results/SimulationsGoF.l.RData")
 } else {
-  load("Results/Correlations.RData")
+  load("Results/SimulationsGoF.lqpth.RData")
 }
 
 ```
 
 
+```{r}
+#| label: CreateSpatCVs
+#| echo: false
+#| warning: false
+#| message: false
+#| eval: true
+
+if(!file.exists("Results/CrossValidSpat.RData") | UpdateEverything) {
+  
+  CVspat <- sapply(Regions, function(region, Sizes) {
+    bgEnv <- disBg(region)
+    SpNames <- unique(disPo(region)$spid)
+
+    CVstats <- sapply(SpNames, function(sp, ...) tryCatch(CalcCVStatistic(sp, ...), 
+                     error = function(msg){ return(c(NaN, NaN)) }), 
+                      k=5, size=5e4, classes="lqpth", 
+                      Sizes=Sizes, spatial=TRUE, removenames=RemoveNames)
+    CVstats
+  }, Sizes=Sizes, simplify=FALSE)
+  #  message(reg, " done")
+  
+  save(CVspat, file="Results/CrossValidSpat.RData")  
+} else {
+  load("Results/CrossValidSpat.RData")
+}
+```
+
+```{r}
+#| label: CreateNonSpatCVs
+#| echo: false
+#| warning: false
+#| message: false
+#| eval: true
+
+if(!file.exists("Results/CrossValidNonSpat.RData") | UpdateEverything) {
+  
+  CVnonspat <- sapply(Regions, function(region, Sizes) {
+    bgEnv <- disBg(region)
+    SpNames <- unique(disPo(region)$spid)
+    # CVstats <- sapply(SpNames, CalcCVStatistic, k=5, size=NULL, classes="lqpth", 
+    #                   Sizes=Sizes, spatial=FALSE, removenames=RemoveNames)
+        CVstats <- sapply(SpNames, function(sp, ...) tryCatch(CalcCVStatistic(sp, ...), 
+                     error = function(msg){ return(c(NaN, NaN)) }), 
+                      k=5, size=5e4, classes="lqpth", 
+                      Sizes=Sizes, spatial=FALSE, removenames=RemoveNames)
+
+    CVstats
+  }, Sizes=Sizes, simplify=FALSE)
+  #  message(reg, " done")
+  
+  save(CVnonspat, file="Results/CrossValidNonSpat.RData")  
+} else {
+  load("Results/CrossValidNonSpat.RData")
+}
+
+```
 
 
 ## Results
 
+[NOT SURE WHERE TO PUT THIS] The PA and PO data are supposedly sampled from the same actual distribution, so we would expect there to be strong correlations between internal and external fitted models and validation statistics. Ideally, the only deviation should be due to sampling variation, but of course data from the real world does not repect our ideals. This means that comparisons with null hypotheses are meaningless: the whole point of this exercise is that we expect a relationship, and the question is how strong it is, and if it is strong enough to be reliable.
 
 ### Summary of Predictions on PA data
 
@@ -137,11 +295,11 @@ if(!file.exists("Results/Correlations.RData") | UpdateEverything) {
 #| label: SummStats
 #| echo: false
 Prop01 <- list2DF(lapply(AllCoefs.lqpth.sp, function(reg) {
-  slope <- unlist(lapply(reg, function(l) l$coefficients["Pred"]))
-  c(Good=sum(slope>0 & slope <1), Total=length(slope), 
+  slope <- unlist(lapply(reg, function(l) l$coefficients["MxPred"]))
+  c(Good=sum(slope>0 & slope <1), VeryGood=sum(slope>0.5 & slope <1), Total=length(slope), 
     TooBig=sum(slope >1), Bad = sum(slope <0))
 }))
-rownames(Prop01) <- c("Good", "Total", "TooBig", "Bad")
+rownames(Prop01) <- c("Good", "VeryGood", "Total", "TooBig", "Bad")
 
 
 # Equal to 0 or 1
@@ -152,7 +310,7 @@ Eq <- lapply(AllCoefs.lqpth.sp, function(AllC) {
   res <- cbind(
     Eq0 =unlist(lapply(AllC, TestInCI, value=0)),
     Eq1 =unlist(lapply(AllC, TestInCI, value=1)),
-    Above1 = unlist(lapply(AllC, function(l) l$coefficient["Pred"]>1))
+    Above1 = unlist(lapply(AllC, function(l) l$coefficient["MxPred"]>1))
   )
   res
   })
@@ -164,10 +322,43 @@ rownames(AllTest) <- c("eq0", "eq1", "above1", "total")
 
 ```
 
-The estimated slopes and intercepts of the GLM linking the predictions from the MaxEnt model to the PA data are shown in @fig-SlopeIntlqpth. Most of the slopes (`r round(100*sum(Prop01["Good",])/sum(Prop01["Total",]))`%) are between 0 and 1, as we might expect, but `r round(100*sum(Prop01["Bad",])/sum(Prop01["Total",]))`% were negative, and `r round(100*sum(Prop01["TooBig",])/sum(Prop01["Total",]))`% had slopes above 1, with `r round(100*rowSums(AllTest["above1",])/rowSums(AllTest["total",]))`% not having 1 in the confidence interval
+```{r}
+#| label: fig-SlopeIntlqpth
+#| fig-cap: Ung
+
+GetPars <- function(reglst) {
+  tt <- t(list2DF(lapply(reglst, function(l) l$coefficients)))
+  colnames(tt) <- c("Intercept", "Slope")
+  tt
+}
+Params <- lapply(AllCoefs.lqpth, GetPars)
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(Params), function(nm, lst) {
+    plot(lst[[nm]][,"Intercept"], lst[[nm]][,"Slope"], type="n", xlab="", ylab="", main=nm) 
+   rect(-100, 0, 100, 1, col="mistyrose", border=NA)
+  # rect(-100, -100, 0.7, 100, col="mistyrose", border=NA)
+  # rect(-100, -100, 0.7, 0.7, col="pink", border=NA)
+  # rect(-100, -100, 100, 0, col="red", border=NA)
+  # rect(-100, -100, 0.5, 100, col="red", border=NA)
+  points(lst[[nm]][,"Intercept"], lst[[nm]][,"Slope"])
+  box()
+
+}, lst=Params)
+
+mtext("Intercept", 1, outer=TRUE)
+mtext("Slope", 2, outer=TRUE, line=0.5)
+
+
+```
+
+
+The estimated slopes and intercepts of the GLM linking the predictions from the MaxEnt model to the PA data are shown in @fig-SlopeIntlqpth. Although most of the slopes (`r round(100*sum(Prop01["Good",])/sum(Prop01["Total",]))`%) are between 0 and 1, as we might expect, `r round(100*sum(Prop01["Bad",])/sum(Prop01["Total",]))`% were negative, and `r round(100*sum(Prop01["TooBig",])/sum(Prop01["Total",]))`% had slopes above 1, with `r round(100*rowSums(AllTest["above1",])/rowSums(AllTest["total",]))`% not having 1 in the confidence interval. If we view an estiamred slope between 0.5 and 1 as acceptable, only `r round(100*sum(Prop01["VeryGood",])/sum(Prop01["Total",]))`% of species fit this category.
+
+
 
 ```{r}
-#| label: PlotIntercepts
+#| label: GetIntercepts
 #| echo: false
 
 GetInts <- function(region, dat) {
@@ -189,65 +380,9 @@ IntCor <- unlist(lapply(Intercepts, function(x) cor(x)[1,2]))
 
 ```
 
-As would be expected, the estimated intercepts varied between species, i.e. species had differing observed prevalences. This was not correlated between data sets: the largest largest correlation is `r round(max(IntCor), 2)`, for the `r names(IntCor)[which(IntCor==max(IntCor))]` data. 
-
-The MaxEnt model needs an intercept, but this is determined by the number of presence and pseudo-absence points, so it is not generally helpful. However, we might hope that the relative values of intercepts across species represent relative measures of prevalence. We can examine this be asking whether the correlations between the intercepts from the PA data are similar to those in the PO data. Unfortunately they are not: the largest correlation is `r round(max(IntCor), 2)`, for the `r names(IntCor)[which(IntCor==max(IntCor))]` data.
 
 
 
-```{r}
-#| label: fig-SlopeIntlqpth
-#| echo: false
-#| results: hide
-#| eval: true
-#| fig-cap: "Estimated intercept and slope for calibration of predictions to presence absence data, from Maxent model with all features."
-
-par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
-sapply(names(AllCoefs.lqpth.sp), PlotCoefs, lst=AllCoefs.lqpth.sp)
-mtext("Intercept", 1, outer=TRUE)
-mtext("Slope", 2, outer=TRUE, line=0.5)
-
-```
-
-
-```{r}
-#| label: fig-PlotIS
-#| echo: false
-#| results: hide
-#| eval: false
-#| fig-cap: "Estimated intercept and slope for calibration of predictions to presence absence data, from Maxent model with all features and observations of non-target species as pseudo-absences."
-
-par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
-sapply(names(AllCoefs.lqpth.sp), PlotCoefs, lst=AllCoefs.lqpth.sp)
-mtext("Intercept", 1, outer=TRUE)
-mtext("Slope", 2, outer=TRUE, line=0.5)
-
-```
-
-## Coefficients above 1?
-
-We can see the effect of adding extra variation in the PO data model in @fig-CoefOver1, for the Swiss species 04. As the extra variation increases, i.e. the PO data becomes worse, the slope tends to increase.
-
-```{r}
-#| label: CoefOver1
-#| echo: false
-#| fig-cap: "Estimated slopes for calibration of predictions to simulated presence absence data, from Maxent model with linear features fitted to simulated PO data with overdispresion in the linear predictor."
-
-species="swi04"
-
-sigmas <- seq(0,20, length=50)
-Coefs <- future_sapply(sigmas, function(sig, sp, nsim) {
-  Coefs <- SimCoefs(species=sp, sigma=c(sig, 0), nsim=nsim)
-  Coefs
-}, sp=species, nsim=1)
-
-plot(sigmas, Coefs, type="n", xlab="PO overdispersion", ylab="Slope")
-  rect(-100, 0, 100, 1, col="pink", border=NA)
-abline(lm(Coefs ~ sigmas), col=2)
-points(sigmas, Coefs)
-box()
-
-```
 
 ### Comparison with Traditional Indicators
 
@@ -255,34 +390,21 @@ box()
 ```{r}
 #| label: fig-ExtractGofStats
 #| echo: false
+#| fig-height: 5
 #| results: hide
 #| eval: true
 #| fig-cap: "Estimated intercept and slope for calibration of predictions to presence absence data, from Maxent model with all features."
-
-
-ExtractGof <- function(lst.sp, model="maxnet") {
-  c(beta = as.numeric(lst.sp$coefficients["MxPred"]), AUC = lst.sp$valid["AUC", model],
-    TSS = lst.sp$valid["TSS", model])
-}
 
 GoFstats <- lapply(AllCoefs.lqpth.sp, function(reg) {
   lst <- lapply(reg, ExtractGof)
   as.data.frame(do.call(rbind, lst))
 })
 
-PlotGoF <- function(nm, lst, statx, staty, ...) {
-  df <- lst[[nm]]
-  plot(df[,statx], df[,staty], type="n", xlab="", ylab="", main=nm,...) 
-  if(staty=="beta") rect(-100, 0, 100, 1, col="pink", border=NA)
-  if(statx=="AUC") abline(v=0.7, lty=2)
-  if(statx=="TSS") abline(v=0.0, lty=2)
-  
-  points(df[,statx], df[,staty]) 
-}
+
  PlotGoF(nm=names(GoFstats)[1], lst=GoFstats, statx="AUC", staty="beta", xlim=c(0,1))
 
 
-par(mfcol=c(3,4), mar=c(3,2,4,1), oma=c(2,2,0,0))
+par(mfcol=c(3,4), mar=c(2,2,4,1), oma=c(2,2,0,0))
 sapply(names(GoFstats), PlotGoF, lst=GoFstats, statx="AUC", staty="beta", xlim=c(0,1))
 mtext("AUC", 1, outer=TRUE, adj=0.25)
 mtext("Slope", 2, outer=TRUE, line=0.5)
@@ -294,8 +416,8 @@ mtext("TSS", 1, outer=TRUE, adj=0.75)
 
 # Poor AUCs
 AUCs <- unlist(lapply(GoFstats, function(x) x$AUC))
-mean(AUCs<0.7)
-mean(AUCs<0.5)
+# mean(AUCs<0.7)
+# mean(AUCs<0.5)
 
 # lapply(GoFstats, function(x) x$beta[x$AUC<0.5])
 # lapply(GoFstats, function(x) x$AUC[x$beta<0])
@@ -307,28 +429,93 @@ GoFCorrelations <- as.data.frame(do.call(rbind, lapply(GoFstats, function(df) co
 
 In general there is a positive correlation with AUC (@fig-ExtractGofStats), but smaller correlations with TSS. As with AUC, the slope can tell us which species have bad models, i.e. where treating a predicted presence as an absence is more likely to be correct. Overall the data, `r round(100*mean(AUCs<0.7))`% of the species have an AUC below 0.7, and `r round(100*mean(AUCs<0.5),1)`% have an AUC below 0.5.
 
+
+### Internal Cross-validation
+
+```{r}
+#| label: IntCVAUCbeta
+#| message: false
+#| echo: false
+#| results: hide
+
+
+# Clean up NULLs
+CVspat.clean <- lapply(CVspat, function(lst) {
+  if(is.list(lst)) {
+    res <- as.matrix(list2DF(lapply(lst, function(l) if(length(l)==2) {l} else {c(NaN, NaN)})))
+    rownames(res) <- names(lst[[1]])
+  } else {
+    res <- lst
+  }
+  res
+  })
+
+AUCbeta.CV <- sapply(Regions, function(reg, IntCV, valid, stat1="AUC", stat2="beta") {
+  cbind(int=IntCV[[reg]][stat1,], ext=valid[[reg]][,stat2])
+}, IntCV=CVspat.clean, valid=GoFstats)
+
+Rho <- unlist(lapply(AUCbeta.CV, function(lst) {
+  cor(lst[,"int"], lst[,"ext"], use="pairwise.complete.obs")
+}))
+
+
+MinAUC <- min(list2DF(lapply(AUCbeta.CV, function(l) apply(l, 2, min, na.rm=TRUE))))
+Minbeta <- min(list2DF(lapply(AUCbeta.CV, function(l) apply(l, 2, min, na.rm=TRUE))))
+Maxbeta <- max(list2DF(lapply(AUCbeta.CV, function(l) apply(l, 2, max, na.rm=TRUE))))
+```
+
+The regression coefficients are not well predicted by the AUC from external cross-validation (@fig-IntCVAUC), with the highest correlation being `r round(max(Rho), 2)`. In part this may be because AUC cannot distinguish between a small regression coefficient and an ideal one, but where there is still much uncertainty. THE EFFECT OF TSS IS....
+
+
+```{r}
+#| label: fig-IntCVAUCbeta
+#| message: false
+#| echo: false
+#| results: hide
+#| fig-cap: Comparison of regression coefficient and AUC from external cross-validation.
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(AUCbeta.CV), PlotAUC, lst=AUCbeta.CV, xlim=c(0.4,1), ylim=c(Minbeta,Maxbeta),
+       AtRho = c(0.13, 1.23))
+mtext("AUC", 1, outer=TRUE)
+mtext(expression(beta), 2, outer=TRUE, line=0.5)
+
+```
+
+The relationship between internal and external cross-validation statistics is mostly weak or moderate (@fig-IntCVAUC), with only the Swiss data having an almost-strong correlation.
+
+```{r}
+#| label: fig-IntCVAUC
+#| message: false
+#| echo: false
+#| results: hide
+#| fig-cap: AUC from internal and external validation
+
+
+AUC.CV <- sapply(Regions, function(reg, IntCV, valid, stat="AUC") {
+  cbind(int=IntCV[[reg]][stat,], ext=valid[[reg]][,stat])
+}, IntCV=CVspat.clean, valid=GoFstats)
+
+
+
+MinAUC <- min(list2DF(lapply(AUC.CV, function(l) apply(l, 2, min, na.rm=TRUE))))
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(AUC.CV), PlotAUC, lst=AUC.CV, AUC=TRUE, 
+       xlim=c(MinAUC,1), ylim=c(MinAUC,1),
+       AtRho = c(0.43, 0.83))
+mtext("Internal CV", 1, outer=TRUE)
+mtext("External CV", 2, outer=TRUE, line=0.5)
+
+```
+
+
 ## Correlations between models fitted to PA and PO data
 
 ```{r}
 #| label: Corrslqpt
 #| results: hide
 #| echo: false
-
-GetPreds <- function(results) {
-  preds <- lapply(results, function(lst) {
-    cbind(lst$pred[,"PA"], lst$pred[,"valid"])
-  })
-}
-CalcCorrs <- function(lst) {
-  unlist(lapply(lst, function(x) cor(x)[1,2]))
-}
-PlotCorrs <- function(corrs) {
-  plot(corrs$cor, jitter(as.numeric(corrs$region)), yaxt="n", xlim=c(-1,1),
-       xlab="Correlation", ylab="")
-  axis(2, at=1:6, labels = levels(corrs$region), las=1)
-  abline(v=0, lty=3)
-}
-
 
 AllPreds.lqpth <- lapply(AllCoefs.lqpth, GetPreds)
 AllCorrs.lqpth <- lapply(AllPreds.lqpth, CalcCorrs)
@@ -343,28 +530,37 @@ Corrs.df <- data.frame(cor = Cor.tmp,
 Corrs.df$species <- gsub(".*\\.", "", rownames(Corrs.df))
 
 Cor.tmp <- unlist(AllCorrs.lqpth.sp)
-Corrs.df.sp <- data.frame(cor = Cor.tmp, 
+Corrs.df.sp <- data.frame(cor = Cor.tmp,
                        region = factor(gsub("\\..*", "", attr(Cor.tmp, "names")), levels=Regions))
 Corrs.df.sp$species <- gsub(".*\\.", "", rownames(Corrs.df.sp))
+
+SimCorrs.l <- lapply(SimGoF, function(x) x[,c("species", "corMxPA")])
+SimCorrs <- as.data.frame(do.call(rbind, SimCorrs.l))
+names(SimCorrs) <- gsub("MxPA", "", names(SimCorrs))
+  SimCorrs$region <- as.factor(toupper(gsub("[0-9]*", "", SimCorrs$species)))
+
 
 ```
 
 
-Most of the correlations between the models fitted to the PA and PO data were weakly positive, with `r round(100*mean(Corrs.df.sp$cor<0))`% being negative, and `r round(100*mean(Corrs.df.sp$cor<0.6))`% having a correlation below 0.6 (@fig-PlotCorrs). This contrasts with the simulated data where only `r round(100*mean(unlist(lapply(Correlations, c))<0.6, na.rm=TRUE))`% of the simulated corresations were below 0.6.
+Most of the correlations between the models fitted to the PA and PO data were weakly positive, with `r round(100*mean(Corrs.df.sp$cor<0))`% being negative, and `r round(100*mean(Corrs.df.sp$cor<0.6))`% having a correlation below 0.6 (@fig-PlotCorrs). This contrasts with the simulated data where `r round(100*mean(unlist(lapply(SimCorrs$cor, c))<0.6, na.rm=TRUE))`% of the simulated correlations were below 0.6. [CHECK THIS!!! SEEMS TO BE WRONG]
 
 
 ```{r}
-#| label: SummSimCorrelation}
+#| label: SummSimCorrelation
 #| echo: false
-CorrSumm <- lapply(Correlations, function(lst) apply(lst, 2, function(x) c(mean=mean(x), sd=sd(x))))
+# CorrSumm <- lapply(Correlations, function(lst) apply(lst, 2, function(x) c(mean=mean(x), sd=sd(x))))
+# 
+# CorrsSumm.df <- data.frame(
+#   mean=do.call(c, lapply(CorrSumm, function(x) x["mean",])),
+#   sd=do.call(c, lapply(CorrSumm, function(x) x["sd",]))
+# )
+# CorrsSumm.df$region <- as.factor(gsub("[0-9]", "", rownames(CorrsSumm.df)))
+# CorrsSumm.df$At.region <- jitter(as.numeric(CorrsSumm.df$region))
+# CorrsSumm.df$species <- rownames(CorrsSumm.df)
 
-CorrsSumm.df <- data.frame(
-  mean=do.call(c, lapply(CorrSumm, function(x) x["mean",])),
-  sd=do.call(c, lapply(CorrSumm, function(x) x["sd",]))
-)
-CorrsSumm.df$region <- as.factor(gsub("[0-9]", "", rownames(CorrsSumm.df)))
-CorrsSumm.df$At.region <- jitter(as.numeric(CorrsSumm.df$region))
-CorrsSumm.df$species <- rownames(CorrsSumm.df)
+# CorrsSumm.df <- lapply(AllCoefs.lqpth)
+
 ```
 
 
@@ -381,99 +577,30 @@ PlotCorrs(Corrs.df)
 ```
 
 
-```{r}
-#| label: Diffs
-#| fig-height: 12
-#| eval: true
-#| echo: false
-
-CountObs <- function(region) {
-  PO <- disPo(region)
-  tab.PO <- table(PO$spid)
-  
-  if(region%in%c("NSW", "AWT")) {
-    grp <- unique(PO$group)
-    Count <- sapply(grp, function(G, reg) {
-      po <- disPa(reg, group = G)
-      apply(po[,!names(po)%in%c("group", "siteid", "x", "y")], 2, sum)
-    }, reg=region, simplify = FALSE)
-    tab.PA <- unlist(Count)
-    names(tab.PA) <- gsub(".*\\.", "", names(tab.PA))
-    
-  } else {
-    PA <- disPa(region)
-    tab.PA <- apply(PA[,!names(PA)%in%c("group", "siteid", "x", "y")], 2, sum)
-  }
-  Counts <- cbind(PA=tab.PA, PO=tab.PO[names(tab.PA)])
-  }
-
-AllCounts.l <- sapply(Regions, CountObs)
-
-AllCounts <- data.frame(
-  PA = unlist(lapply(AllCounts.l, function(x) x[,"PA"])),
-  PO = unlist(lapply(AllCounts.l, function(x) x[,"PO"]))
-)
-AllCounts$species <- gsub(".*\\.", "", rownames(AllCounts))
 
 
-AllCorrs <- merge(Corrs.df, CorrsSumm.df, by="species")
-AllCorrs$Diff <- AllCorrs$cor - AllCorrs$mean
-
-AllAll <- merge(AllCounts, AllCorrs, by="species")
-```
-
-```{r}
-#| label: fig-PlotCorrDiff
-#| echo: false
-#| fig-height: 6
-#| fig-width: 8
-#| fig-cap: "Differences between correlations between predictions of Maxent models fitted to presence-only data and presence-absence data, predictions made on presence-absence locations, from actual data and simulated data. Left: differences, right: Correlations plotted agaionst each other"
-
-par(mfrow=c(1,2))
-plot(AllCorrs$Diff, AllCorrs$At.region, yaxt="n", xlim=c(-1,1),
-     xlab="Difference", ylab="")
-segments(AllCorrs$Diff-AllCorrs$sd, AllCorrs$At.region,
-         AllCorrs$Diff+AllCorrs$sd, AllCorrs$At.region)
-
-axis(2, at=1:6, labels = levels(AllCorrs$region.x), las=1)
-abline(v=0, lty=3)
-
-AllCorrs$RegionCol <- as.numeric(AllCorrs$region.x)
-plot(AllCorrs$mean, AllCorrs$cor, pch=16, 
-     xlab="Mean of simulated correlations", ylab="Correlation in data", 
-     col=AllCorrs$RegionCol)
-segments(AllCorrs$mean-AllCorrs$sd, AllCorrs$cor,
-         AllCorrs$mean+AllCorrs$sd, AllCorrs$cor, col=AllCorrs$RegionCol)
-legend(-0.18, 0.02, levels(AllCorrs$region.x), lty=1, 
-       col=1:nlevels(AllCorrs$region.x), cex=0.8)
-abline(0,1)
-
-
-```
-
-
-```{r}
-#| label: fig-PlotCorrDiffNObs
-#| fig-height: 12
-#| fig-width: 8
+```{r} 
+#| label: fig-PlotSimCorrs
 #| echo: false
 #| results: hide
-#| fig-cap: "Effects of sample size (i.e. number of presences) on correlations between predictions of Maxent models fitted to presence-only data and presence-absence data, predictions made on presence-absence locations"
+#| fig-cap: "Correlations between predictions of Maxent models fitted to presence-only data and presence-absence data, predictions made on presence-absence locations"
 
-par(mfrow=c(6,2), mar=c(2,4.1,4.1,1), oma=c(2,2,1,1))
-by(AllAll, list(AllAll$region.x), function(df) {
-  plot(df$PA, df$mean, log="x", ylab=df$region.y[1])
-  if(AllAll$region.x[1]==levels(AllAll$region.x)[1]) mtext("Presence Absence", 3)
-  plot(df$PO, df$mean, log="x", xlab="", ylab="")
-  if(AllAll$region.x[1]==levels(AllAll$region.x)[1]) mtext("Presence Only", 3)
-})
-mtext("Number of presences", 1, outer=TRUE)
-mtext("Mean correlation in simulations", 2, outer=TRUE)
+par(mfrow=c(1,1), mar=c(4.1,6,1,1))
+PlotCorrs(SimCorrs)
+points(Corrs.df$cor, jitter(as.numeric(Corrs.df$region)), col="red")
+
+
+par(mfrow=c(3,2), mar=c(4.1,6,1,1))
+sapply(names(SimGoF), function(nm, simlst, actlist=NULL) {
+  plot(density(simlst[[nm]]$corMxPA[!is.na(simlst[[nm]]$corMxPA)]), main=nm)
+  if(!is.null(actlist)) lines(density(actlist[[nm]]), col=2)
+  
+}, simlst=SimGoF, actlist=AllCorrs.lqpth)
 
 ```
 
 
-Species nz21 & swi12 have negative correlations in the simulated data, so let's look at them...
+In the simulated data, two species (nz21 & swi12) have negative correlations between the fitted models. We can see in the plots of the parameter estimates that mostly lie along one or two of the axes (@fig-PlotWeirdSpp), i.e. the regularisation shrinks the estimates to zero, and for these species different coefficients remain in the models fitted to the two data sets. It must be emphasised that these are extreme data: the behaviour is instructive, as an extreme example of how the models can fail rather than exampkles of typical behaviour.
 
 ```{r}
 #| label: FitWeirdSpp
@@ -509,7 +636,7 @@ swi12.coefs[is.na(swi12.coefs)] <- 0
 #| label: fig-PlotWeirdSpp
 #| message: false
 #| echo: false
-#| fig-height: 6
+#| fig-height: 4
 #| fig-cap: "Estimates of parameters from fits of MaxEnt models to presence-only and presence absence data for species nz21 and swi12."
 
 par(mfrow=c(1,2), mar=c(2,2,3,1), oma=c(2,2,0,0))
@@ -529,68 +656,193 @@ mtext("PA coefficients", 2, outer=TRUE)
 
 ```
 
-Correlations with bias correction
+## Simulated Data
+
+(NOT SURE THIS SHOULD GO HERE)
+
 
 ```{r}
-#| label: fig-Corrslqpt.sp
-#| results: hide
+#| label: CalcSimCorrs
+#| echo: false
+#| 
+SimCorrs$ActCor <- sapply(SimCorrs$species, function(sp, Cor) Cor$cor[Cor$species==sp], Cor=Corrs.df)
+SimCorrs$Diff <- SimCorrs$cor - SimCorrs$ActCor
+
+Ns <- t(sapply(Corrs.df$species, GetNPres, scale=FALSE))
+Corrs.df <- cbind(Corrs.df, Ns)
+
+meanDiff <- aggregate(SimCorrs$Diff, list(SimCorrs$species), mean, na.rm=TRUE)
+sdDiff <- aggregate(SimCorrs$Diff, list(SimCorrs$species), sd, na.rm=TRUE)
+
+Corrs.df$meanCor <- sapply(Corrs.df$species, function(sp, dd) { 
+  mean(dd$cor[dd$species==sp], na.rm=TRUE) }, dd=SimCorrs)
+Corrs.df$sdCor <- sapply(Corrs.df$species, function(sp, dd) { 
+  sd(dd$cor[dd$species==sp], na.rm=TRUE) }, dd=SimCorrs)
+
+```
+
+
+With the simulated data, `r round(100*mean(SimCorrs$ActCor<SimCorrs$cor, na.rm=TRUE))`% of the simulated correlations (and `r round(100*mean(Corrs.df$meanCor>Corrs.df$cor, na.rm=TRUE))`% of the mean correlations) were above the correlations in the data (@fig-PlotSimCorrsN). The models where the simulated data performed worse tended to be those with less data (@fig-SimCorrN). This is what might be expected.
+
+
+```{r}
+#| label: fig-PlotSimCorrsN
+#| echo: false
+#| fig-cap: Relationship between correlations between predictions on PA data for MaxEnt models fitted on PO and PA data. Simulated correlations are mean and mean +/- 1 standard deviation.
+
+  Ylim <- c(min(Corrs.df$meanCor - Corrs.df$sdCor, na.rm=TRUE), 1)
+plot(Corrs.df$cor, Corrs.df$meanCor, ylim=Ylim,
+     xlab="Correlation in Data", ylab="Correlation in Simulations")
+segments(Corrs.df$cor, Corrs.df$meanCor - Corrs.df$sdCor,
+         Corrs.df$cor, Corrs.df$meanCor + Corrs.df$sdCor)
+abline(0,1, col=2)
+
+```
+
+
+
+```{r}
+#| fig-cap: Effect of number of obsevations of a species on the difference in correlations.
+#| label: fig-SimCorrN
 #| echo: false
 
-AllPreds.lqpth.sp <- lapply(AllCoefs.lqpth.sp, GetPreds)
-AllCorrs.lqpth.sp <- lapply(AllPreds.lqpth.sp, CalcCorrs)
+Corrs.df$meanDiff <- Corrs.df$meanCor - Corrs.df$cor
+
+YLim <- c(min(Corrs.df$meanDiff-Corrs.df$sdCor, na.rm = TRUE),1 )
+par(mfrow=c(1,2), mar=c(3.1,2.5,3,1), oma=c(2,2,0,0))
+plot(log(Corrs.df$nPO), Corrs.df$meanDiff, ylim=YLim, 
+     xlim=range(log(Corrs.df$nPO)[!is.na(Corrs.df$meanDiff)]),
+     xlab="",ylab="", main="Presence Only")
+segments(log(Corrs.df$nPO), Corrs.df$meanDiff-Corrs.df$sdCor, 
+         log(Corrs.df$nPO), Corrs.df$meanDiff+Corrs.df$sdCor)
+abline(h=0, col=2)  
+
+plot(log(Corrs.df$nPA), Corrs.df$meanDiff, ylim=YLim, 
+     xlab="",ylab="", main="Presence-Absence")
+segments(log(Corrs.df$nPA), Corrs.df$meanDiff-Corrs.df$sdCor, 
+         log(Corrs.df$nPA), Corrs.df$meanDiff+Corrs.df$sdCor)
+abline(h=0, col=2)  
+
+mtext("Difference in correlations", 2, outer=TRUE)
+mtext("Number of presence observstions", 1, outer=TRUE)
+
+```
 
 
-Cor.tmp <- unlist(AllCorrs.lqpth.sp)
-Corrs.df.sp <- data.frame(cor = Cor.tmp, 
-                       region = factor(gsub("\\..*", "", attr(Cor.tmp, "names")), levels=Regions))
+```{r}
+#| label: CalcSimBetas
+#| echo: false
 
-par(mfrow=c(1,1), mar=c(4.1,6,1,1))
-PlotCorrs(Corrs.df.sp)
+Betas.tmp <- unlist(lapply(AllCoefs.lqpth, function(Lst)
+  {unlist(lapply(Lst, function(x) x$coefficients["MxPred"]))}))
+names(Betas.tmp) <- gsub(".MxPred", "", names(Betas.tmp))
+names(Betas.tmp) <- gsub(".*\\.", "", names(Betas.tmp))
+Betas.tmp <- data.frame(species = names(Betas.tmp), beta=Betas.tmp)
+
+SimB.l <- lapply(SimGoF, function(x) x[,c("species", "beta")])
+SimBetas <- as.data.frame(do.call(rbind, SimB.l))
+
+meanbeta <- aggregate(SimBetas$beta, list(species=SimBetas$species), mean, na.rm=TRUE)
+sdbeta <- aggregate(SimBetas$beta, list(species=SimBetas$species), sd, na.rm=TRUE)
+
+
+BetasX <- merge(Betas.tmp, meanbeta)
+names(BetasX)[names(BetasX)=="x"] <- "meanbeta"
+BetasY <- merge(BetasX, sdbeta)
+names(BetasY)[names(BetasY)=="x"] <- "sdbeta"
+
+Betas <- merge(BetasY, Corrs.df[,c("species", "nPO", "totPO", "nPA", "totPA")])
+```
+
+When we look at beta, we see that it varies a lot in the simulated data, even though the data are from the same process. Because the model is correct, but the uncertainties in the PO model are ignored, we would expect the average beta to be below 1, but this is only true for `r round(100*mean(Betas$meanbeta<1))`% of the data sets. We can see that as the number of presence-only points rises, the variation in beta gets smaller, but the average increases  (@fig-PlotSimBetas). Thus, with more data the average beta becomes more biased.
+
+
+```{r}
+#| label: fig-PlotSimBetas
+#| fig-cap: Relationship between betas for MaxEnt models fitted on PO and PA data. Simulated betas are mean and mean +/- 1 standard deviation.
+
+YLim <- c(min(Betas$meanbeta-Betas$sdbeta, na.rm = TRUE),
+          max(Betas$meanbeta+Betas$sdbeta, na.rm = TRUE))
+
+par(mfrow=c(1,2), mar=c(3.1,2.5,3,1), oma=c(2,2,0,0))
+plot(log(Betas$nPO), Betas$meanbeta, ylim=YLim,
+              xlab="",ylab="", main="Presence Only")
+segments(log(Betas$nPO), Betas$meanbeta-Betas$sdbeta, 
+         log(Betas$nPO), Betas$meanbeta+Betas$sdbeta)
+abline(h=1, col=2)
+
+plot(log(Betas$nPA), Betas$meanbeta, ylim=YLim, 
+              xlab="",ylab="", main="Presence Absence")
+segments(log(Betas$nPA), Betas$meanbeta-Betas$sdbeta, 
+         log(Betas$nPA), Betas$meanbeta+Betas$sdbeta)
+abline(h=1, col=2)
+
+mtext("Betas", 2, outer=TRUE)
+mtext("Number of presence observstions", 1, outer=TRUE)
+
+
+```
+
+
+## Variation in Prevalences
+
+As would be expected, the estimated intercepts varied between species, i.e. species had differing observed prevalences. This was not correlated between data sets: the largest largest correlation is `r round(max(IntCor), 2)`, for the `r names(IntCor)[which(IntCor==max(IntCor))]` data. 
+
+The MaxEnt model needs an intercept, but this is determined by the number of presence and pseudo-absence points, so it is not generally helpful. However, we might hope that the relative values of intercepts across species represent relative measures of prevalence. We can examine this be asking whether the correlations between the intercepts from the PA data are similar to those in the PO data. Unfortunately they are not: the largest correlation is `r round(max(IntCor), 2)`, for the `r names(IntCor)[which(IntCor==max(IntCor))]` data.
+
+
+```{r}
+#| label: fig-PlotIS
+#| echo: false
+#| results: hide
+#| eval: false
+#| fig-cap: "Estimated intercept and slope for calibration of predictions to presence absence data, from Maxent model with all features and observations of non-target species as pseudo-absences."
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(AllCoefs.lqpth.sp), PlotCoefs, lst=AllCoefs.lqpth.sp)
+mtext("Intercept", 1, outer=TRUE)
+mtext("Slope", 2, outer=TRUE, line=0.5)
 
 ```
 
 
 ## Discussion
 
-Traditional assessment of SDMs has relied on calculating standard statistics, such as AUC or FSS, through internal or external validation. Here we have shown that it is fruitful to examine the validation more deeply. In particular, we show that (a) we are able to calibrate the fitted model to the validation model, (b) the fitted models often fail, producing predictions that are either counter-intuitive or wrong, and (c) that through plotting predictions we can see how bad our models are.
+Traditional assessment of SDMs has relied on calculating standard statistics, such as AUC or FSS, through internal or external validation. Here we have shown that it is fruitful to examine the validation more deeply, not just to use validation statistics to compare model, but also to learn more about how badly the models fit, and where problems might arise. In particular, we show that the fitted models often fail, producing predictions that are either counter-intuitive or wrong. The difference between our regression coefficient and 1 can be interpreted as a measure of model mis-fit, and whilst it might seem strange that it could be above 1, we have seen that this can occur because the PO data has excessive observational noise.
 
-The simulations show that when the model is correct, the correlations between the models fitted to the PA and PO data are not perfect, but are (unsurprisingly) higher than with the real data. This suggests 
+As well as showing the advantages of using a regression approach, this work also underlines the necessity for external cross-validation. The relationships between internal and external cross-validation statistics is weak (see also REFS), and because we can compare the two, we are able to see that one reason for this is the quality of the PO data.
 
+But why should our results be so wrong We can see this as the confluence of two statistical aphorisms: Box's famous "All models are wrong, but some are useful" (@Box1979RobustnessIT), and Abelson's first law of statistics: chance is lumpy (@abelson1995statistics). The lumpiness of chance means that the different covariates are correlated, as is common with spatial data (@DormannSpatialAutocorrelation). So, because the  model is wrong, it is easy for it to select the wrong covariates to explain the data: we can see this for nz21 and swi12 where, even when the true model is one of the candidate models, fits to the two different data sets chose different covariates. The regularisation through MaxEnt's L1 norm probably accentuates this: without it, the finak model would be more of a compromise between the predictors. Selecting the wrong covariate is not a problem for prediction, as long as the correlation with the "true" covariate is stable across all possible data (REF). But, as we see here, the models can be wildly different if this changes.
 
-Overall, our results are best explained by the confluence of two statistical aphorisms: Box's famous "All models are wrong, but some are useful" (@Box1979RobustnessIT), and Abelson's first law of statisics: chance is lumpy (@abelson1995statistics). Because of the lumpiness of chance, the different covariates are correlated, as is common with spatial data (@DormannSpatialAutocorrelation). This means that, because the  model is wrong, it is easy for it to select the wrong covariates to explain the data: we can see this for nz21 and swi12 where, even when the true model is one of the candidate models, fits to the two diffeent data sets chose different covariates.
+Although this work suggests that SDMs using MaxEnt are poor, it also help us see where improvements might be helpful. The regression coefficients above 1 indicate that the fit of the model to the PO data is poor, and thus this is an area where more work would be helpful. This would require understanding more about how the data were collected, starting with whether it is PO or actually PA data.  For example, most bird data comes from eBird, whose research grade data consists of complete lists. Thus it can be treated as PA data (or detection/non-detection data might be a better descriptor). Even when the data are PO data, some more investigation will help identify the possible biases, e.g. if the detections are along specific routes (REF). To find this out requires meta-data about the collection and properties of the data. Extracting this metadata may become easier as the Humboldt extension to Darwin Core standards becomes used (REF), as this will help standardise the metadata, making it easier to find out (for example) where the absences are. Statistical models and approaches to deal with the richer class of data exist (eg.g. OCCUPANCY MODELS): one useful approach is to consider the sampling issue as a missing data problem (@BowlerMissingData).
 
-Selecting the wrong covariate is not a problem for prediction, as long as the correlation with the "true" covariate is stable across all possible data (REF). But if this changes, the models can be wildly different.
+As a by-product, we have also replicated the findings of @SmithLevineTau. The intercepts for the PA data were not 0, i.e. most species did not have a prevalence over the region of 0.5, and the prevalences varied, i.e. some species are more widespread than others. Whilst this should not be surprising, it does emphasise that the "arbitrary" (REF) choice of $\tau=0.5$ is not just arbitrary but, in practice, wrong. Calibration of species' distributions thus needs to be done with more care. Unfortunately the lack of correlation between the intercepts in the PO and PA data suggests we cannot just us models of PO data for many species and correct all of the relative prevalences up or down. 
 
+Uncertainty in the distribution models has largely been ignored. This is in common with most SDMs, and also because standard errors and prediction intervals are not easy to obtain from regularised models, an issue made worse because the statistical theory underlying presence-only data shows that resampling methods such as internal cross-validation or bootstraps are not guaranteed to work (REF AND CHECK). Sampling the likelihood, or being Bayesian and sampling the posterior distribution, is possible but slow, because of the large numnber of parameters.
 
-
-
-
+The work here agrees with @LeeYawEcographyBadSDMs that SDMs that are commonly used often behave poorly. But it also points to pathways to improvement. Finding better models for the actual distribution will only bring marginal gains, at best. Better improvements can be made by taking the data collection process more seriously: the analysis here suggests that this is where a large part of the problem is. This extra work will make it more difficult to fit SDMs to large numbers of species, but the gain in producing reliable models will surely be worth it.
 
 
 ```{r}
 #| label: PlotCorrelations
 #| echo: false
-  plot(CorrsSumm.df$mean, CorrsSumm.df$At.region, yaxt="n", xlim=c(-1,1),
-       xlab="Correlation", ylab="")
-  segments(CorrsSumm.df$mean-CorrsSumm.df$sd, CorrsSumm.df$At.region, 
-           CorrsSumm.df$mean+CorrsSumm.df$sd, CorrsSumm.df$At.region)
-  axis(2, at=1:6, labels = levels(CorrsSumm.df$region), las=1)
-  abline(v=0, lty=3)
+  # plot(CorrsSumm.df$mean, CorrsSumm.df$At.region, yaxt="n", xlim=c(-1,1),
+  #      xlab="Correlation", ylab="")
+  # segments(CorrsSumm.df$mean-CorrsSumm.df$sd, CorrsSumm.df$At.region, 
+  #          CorrsSumm.df$mean+CorrsSumm.df$sd, CorrsSumm.df$At.region)
+  # axis(2, at=1:6, labels = levels(CorrsSumm.df$region), las=1)
+  # abline(v=0, lty=3)
 
 
 
 ```
 
 
-
-
-
-
 ## References
 
 ```{r}
 #| label: MakeSI
-#| eval: false
+#| eval: true
 # Want to do this at the end
 library(quarto)
 quarto_render("ValidatingSDMsSupplInfo.qmd") # all formats

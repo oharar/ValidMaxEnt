@@ -7,7 +7,6 @@ execute:
 
 ---
 
-## Quarto
 
 ```{r, Setup}
 #| echo: true
@@ -18,8 +17,8 @@ library(maxnet)
 library(disdat)
 library(future.apply)
 knitr::opts_chunk$set(dpi = 48)
-source("MaxEntBayesFunctions.R")
-load("AllBigObjects.RData")
+source("ValidatingSDMsFunctions.R")
+load("Results/AllCoefs.RData")
  
 Regions <- c("AWT", "CAN", "NSW", "NZ", "SA", "SWI")
 RemoveNames <- c("siteid", "spid", "x", "y", "occ", "group")
@@ -29,64 +28,76 @@ plan(multisession, workers = 6) ## Run in parallel on local computer, with 6 nod
 ```
 
 
-# Models with linear features
-
-```{r, FitModelsl}
-#| warning: false
-#| message: false
-#| echo: true
-
-AllCoefs.l <- sapply(Regions, JustMaxEnt, 
-                   remove=RemoveNames, classes="l", valid = TRUE, pred=TRUE)
-AllCoefs.l.sp <- sapply(Regions, JustMaxEnt, 
-                   remove=RemoveNames, classes="l", valid = TRUE, otherSpBG=TRUE, pred=TRUE)
-
-```
-
 
 ## Supplementary Figures
 
-Plot of models with linear features
+The intercepts from the two models are plotted in @fig-Intercepts. Overall, any correlations are weak.
 
 ```{r}
-#| echo: false
-#| results: hide
-#| fig-cap: "Estimated intercept and slope for calibration of predictions to presence absence data, from Maxent model with linear features."
+#| label: fig-Intercepts
+#| fig-cap: "Estimated intercepts for MaxEnt models with all features fitted to presence-only and presence absence data."
+
+GetInts <- function(region, dat) {
+  res <- lapply(dat[[region]], function(lst) {
+    df <- c(PO=lst$alpha, PA=c(lst$coefficients["(Intercept)"]))
+    df
+  })
+  res <- t(list2DF(res))
+  colnames(res) <- c("PO", "PA")
+  res
+}
+
+Intercepts <- sapply(Regions, GetInts, dat=AllCoefs.lqpth)
+Intercepts.sp <- sapply(Regions, GetInts, dat=AllCoefs.lqpth.sp)
+
+# unlist(lapply(Intercepts, function(x) cor(x)[1,2]))
+# unlist(lapply(Intercepts.sp, function(x) cor(x)[1,2]))
 
 par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
-sapply(names(AllCoefs.l), PlotCoefs, lst=AllCoefs.l)
-mtext("Intercept", 1, outer=TRUE)
-mtext("Slope", 2, outer=TRUE, line=0.5)
+sapply(names(Intercepts), function(nm, lst) {
+    plot(lst[[nm]][,"PO"], lst[[nm]][,"PA"], type="n", xlab="", ylab="", main=nm) 
+  # rect(-100, -100, 100, 0.7, col="mistyrose", border=NA)
+  # rect(-100, -100, 0.7, 100, col="mistyrose", border=NA)
+  # rect(-100, -100, 0.7, 0.7, col="pink", border=NA)
+  # rect(-100, -100, 100, 0, col="red", border=NA)
+  # rect(-100, -100, 0.5, 100, col="red", border=NA)
+  points(lst[[nm]][,"PO"], lst[[nm]][,"PA"])
+  box()
+
+}, lst=Intercepts)
+
+mtext("Presence Only Data", 1, outer=TRUE)
+mtext("Presence Absence Data", 2, outer=TRUE, line=0.5)
+
 
 ```
 
- Plot of models with linear features, using presences of other species as background points
-
 ```{r}
+#| label: fig-GoF
 #| echo: false
 #| results: hide
-#| fig-cap: "Estimated intercept and slope for calibration of predictions to presence absence data, from Maxent model with linear features and observations of non-target species as pseudo-absences."
+#| eval: true
+#| fig-cap: "Estimated AUC and TSS for calibration of predictions to presence absence data, from Maxent model with all features. Red: values below 0 (TSS) or 0.5 (AUC). Pink: values below 0.4 (TSS) or 0.7 (AUC)"
 
-par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
-sapply(names(AllCoefs.l.sp), PlotCoefs, lst=AllCoefs.l.sp)
-mtext("Intercept", 1, outer=TRUE)
-mtext("Slope", 2, outer=TRUE, line=0.5)
+ExtractGof(lst.sp=AllCoefs.lqpth.sp$AWT$awt01, model="maxnet")
 
-```
+ExtractGof <- function(lst.sp, model="maxnet") {
+  c(beta = as.numeric(lst.sp$coefficients["MxPred"]), AUC = lst.sp$valid["AUC", model],
+    TSS = lst.sp$valid["TSS", model])
+}
 
-
-```{r PlotTradGoF}
-#| echo: false
-#| results: hide
-#| eval: false
-#| fig-cap: "Estimated AUC and TSS for calibration of predictions to presence absence data, from Maxent model with all features."
+GoFstats <- lapply(AllCoefs.lqpth.sp, function(reg) {
+  lst <- lapply(reg, ExtractGof)
+  res <- as.data.frame(do.call(rbind, lst))
+  res
+})
 
 PlotTradGoF <- function(nm, lst) {
 
-  plot(lst[[nm]]$AUC, lst[[nm]]$TSS, xlim=c(0,1), ylim=c(-1,1), type="n", xlab="", ylab="", main=nm) 
-  rect(-100, -100, 100, 0.7, col="mistyrose", border=NA)
+  plot(lst[[nm]]$AUC, lst[[nm]]$TSS, xlim=c(0.3,1), ylim=c(-0.1,1), type="n", xlab="", ylab="", main=nm) 
+  rect(-100, -100, 100, 0.4, col="mistyrose", border=NA)
   rect(-100, -100, 0.7, 100, col="mistyrose", border=NA)
-  rect(-100, -100, 0.7, 0.7, col="pink", border=NA)
+  rect(-100, -100, 0.7, 0.4, col="pink", border=NA)
   rect(-100, -100, 100, 0, col="red", border=NA)
   rect(-100, -100, 0.5, 100, col="red", border=NA)
   points(lst[[nm]]$AUC, lst[[nm]]$TSS)
@@ -100,9 +111,170 @@ mtext("AUC", 1, outer=TRUE)
 mtext("TSS", 2, outer=TRUE, line=0.5)
 
 # lapply(GoFstats, function(x) mean(x$AUC<0.7))
-# lapply(GoFstats, function(x) sum(x$AUC<0.5))
+ sum(unlist(lapply(GoFstats, function(x) sum(x$AUC<0.5))))/sum(unlist(lapply(GoFstats, function(x) length(x$AUC))))
+ sum(unlist(lapply(GoFstats, function(x) sum(x$TSS<0))))/sum(unlist(lapply(GoFstats, function(x) length(x$AUC))))
+```
+
+The traditional goodness of fit statistics are plotted in @fig-GoF. There are weak to moderate correlations between them. Over all species, `r round(100*sum(unlist(lapply(GoFstats, function(x) sum(x$AUC<0.5))))/sum(unlist(lapply(GoFstats, function(x) length(x$AUC)))))`% of species (i.e. `r sum(unlist(lapply(GoFstats, function(x) sum(x$AUC<0.5))))` species) had an AUC below 0.5.
+
+
+
+
+
+```{r}
+#| label: IntCVTSS
+#| message: false
+#| echo: false
+#| results: hide
+#| fig-cap: TSS from internal and external validation
+
+  load("Results/CrossValidSpat.RData")
+# Clean up NULLs
+CVspat.clean <- lapply(CVspat, function(lst) {
+  if(is.list(lst)) {
+    res <- as.matrix(list2DF(lapply(lst, function(l) if(length(l)==2) {l} else {c(NaN, NaN)})))
+    rownames(res) <- names(lst[[1]])
+  } else {
+    res <- lst
+  }
+  res
+  })
+
+TSS.CV <- sapply(Regions, function(reg, IntCV, valid, stat="TSS") {
+  cbind(int=IntCV[[reg]][stat,], ext=valid[[reg]][,stat])
+}, IntCV=CVspat.clean, valid=GoFstats)
+
+MinTSS <- min(list2DF(lapply(TSS.CV, function(l) apply(l, 2, min, na.rm=TRUE))))
+MaxTSS <- max(list2DF(lapply(TSS.CV, function(l) apply(l, 2, max, na.rm=TRUE))))
+
+par(mfrow=c(2,3), mar=c(3,2,4,1), oma=c(2,2,0,0))
+sapply(names(TSS.CV), PlotAUC, lst=TSS.CV, xlim=c(MinTSS,MaxTSS), ylim=c(MinTSS,MaxTSS),
+       AtRho = c(0.43, 0.03))
+mtext("Internal TSS", 1, outer=TRUE)
+mtext("External TSS", 2, outer=TRUE, line=0.5)
 
 ```
+
+
+
+
+```{r}
+#| label: Diffs
+#| fig-height: 12
+#| eval: false
+#| echo: false
+
+CountObs <- function(region) {
+  PO <- disPo(region)
+  tab.PO <- table(PO$spid)
+  
+  if(region%in%c("NSW", "AWT")) {
+    grp <- unique(PO$group)
+    Count <- sapply(grp, function(G, reg) {
+      po <- disPa(reg, group = G)
+      apply(po[,!names(po)%in%c("group", "siteid", "x", "y")], 2, sum)
+    }, reg=region, simplify = FALSE)
+    tab.PA <- unlist(Count)
+    names(tab.PA) <- gsub(".*\\.", "", names(tab.PA))
+    
+  } else {
+    PA <- disPa(region)
+    tab.PA <- apply(PA[,!names(PA)%in%c("group", "siteid", "x", "y")], 2, sum)
+  }
+  Counts <- cbind(PA=tab.PA, PO=tab.PO[names(tab.PA)])
+  }
+
+AllCounts.l <- sapply(Regions, CountObs)
+
+AllCounts <- data.frame(
+  PA = unlist(lapply(AllCounts.l, function(x) x[,"PA"])),
+  PO = unlist(lapply(AllCounts.l, function(x) x[,"PO"]))
+)
+AllCounts$species <- gsub(".*\\.", "", rownames(AllCounts))
+
+
+AllCorrs <- merge(Corrs.df, CorrsSumm.df, by="species")
+AllCorrs$Diff <- AllCorrs$cor - AllCorrs$mean
+
+AllAll <- merge(AllCounts, AllCorrs, by="species")
+```
+
+```{r}
+#| label: fig-PlotCorrDiff
+#| echo: false
+#| eval: false
+#| fig-height: 6
+#| fig-width: 8
+#| fig-cap: "Differences between correlations between predictions of Maxent models fitted to presence-only data and presence-absence data, predictions made on presence-absence locations, from actual data and simulated data. Left: differences, right: Correlations plotted agaionst each other"
+
+par(mfrow=c(1,2))
+plot(AllCorrs$Diff, AllCorrs$At.region, yaxt="n", xlim=c(-1,2),
+     xlab="Difference", ylab="")
+segments(AllCorrs$Diff-AllCorrs$sd, AllCorrs$At.region,
+         AllCorrs$Diff+AllCorrs$sd, AllCorrs$At.region)
+
+axis(2, at=1:6, labels = levels(AllCorrs$region.x), las=1)
+abline(v=0, lty=3)
+
+AllCorrs$RegionCol <- as.numeric(AllCorrs$region.x)
+plot(AllCorrs$mean, AllCorrs$cor, pch=16, 
+     xlab="Mean of simulated correlations", ylab="Correlation in data", 
+     col=AllCorrs$RegionCol)
+segments(AllCorrs$mean-AllCorrs$sd, AllCorrs$cor,
+         AllCorrs$mean+AllCorrs$sd, AllCorrs$cor, col=AllCorrs$RegionCol)
+legend(-0.18, 0.02, levels(AllCorrs$region.x), lty=1, 
+       col=1:nlevels(AllCorrs$region.x), cex=0.8)
+abline(0,1)
+
+
+```
+
+
+
+
+
+
+```{r}
+#| label: fig-PlotCorrDiffNObs
+#| fig-height: 12
+#| fig-width: 8
+#| echo: false
+#| eval: false
+#| results: hide
+#| fig-cap: "Effects of sample size (i.e. number of presences) on correlations between predictions of Maxent models fitted to presence-only data and presence-absence data, predictions made on presence-absence locations"
+
+par(mfrow=c(6,2), mar=c(2,4.1,4.1,1), oma=c(2,2,1,1))
+by(AllAll, list(AllAll$region.x), function(df) {
+  plot(df$PA, df$mean, log="x", ylab=df$region.y[1])
+  if(AllAll$region.x[1]==levels(AllAll$region.x)[1]) mtext("Presence Absence", 3)
+  plot(df$PO, df$mean, log="x", xlab="", ylab="")
+  if(AllAll$region.x[1]==levels(AllAll$region.x)[1]) mtext("Presence Only", 3)
+})
+mtext("Number of presences", 1, outer=TRUE)
+mtext("Mean correlation in simulations", 2, outer=TRUE)
+
+```
+
+Correlations with bias correction
+
+```{r}
+#| label: fig-Corrslqpt.sp
+#| results: hide
+#| echo: false
+
+AllPreds.lqpth.sp <- lapply(AllCoefs.lqpth.sp, GetPreds)
+AllCorrs.lqpth.sp <- lapply(AllPreds.lqpth.sp, CalcCorrs)
+
+
+Cor.tmp <- unlist(AllCorrs.lqpth.sp)
+Corrs.df.sp <- data.frame(cor = Cor.tmp, 
+                       region = factor(gsub("\\..*", "", attr(Cor.tmp, "names")), levels=Regions))
+
+par(mfrow=c(1,1), mar=c(4.1,6,1,1))
+PlotCorrs(Corrs.df.sp)
+
+```
+
 
 
 ### AWT
